@@ -1,0 +1,108 @@
+# Sparrow – formulaire DSFR pour Grist
+
+Formulaires publics au design de l'État (DSFR, inspiré de Démarche Numérique), conçus dans Grist et servis via un relais n8n.
+
+![Schéma de fonctionnement](docs/schema-formulaire-dsfr-croquis.svg)
+
+## Adresses une fois GitHub Pages activé
+- Widget de conception et page publique : `https://jlllyfish.github.io/sparrow-widget-form-dsfr/index.html`
+- Widget QR code : `https://jlllyfish.github.io/sparrow-widget-form-dsfr/qrcode.html`
+
+Pour activer GitHub Pages : **Settings → Pages → Build and deployment**, choisissez « Deploy from a branch », la branche `main` et le dossier `/ (root)`.
+
+## Mise en place
+
+Trois fichiers :
+- `index.html` : sert à la fois de widget Grist (pour concevoir le formulaire) et de page publique (pour les répondants).
+- `qrcode.html` : un petit widget Grist qui affiche le QR code du stage sélectionné. Il se place à côté de la table Stages.
+- `n8n/workflow-n8n-formulaire-dsfr.json` : le relais n8n entre la page publique et Grist.
+
+Le schéma `docs/schema-formulaire-dsfr-croquis.svg` résume l'ensemble.
+
+Les répondants n'ont jamais accès au document Grist.
+
+## Organisation des données
+- **Document principal** :
+  - le widget de configuration ;
+  - la table `Formulaires` (configuration publiée) ;
+  - la table `Contenus` (textes) ;
+  - la table `Stages`, avec les colonnes Code, Intitulé, Dates…, **Formulaire**, **Inscriptions ouvertes** et **Lien** ;
+  - une table **modèle** des réponses, sur laquelle le widget est posé.
+- **Document des réponses** (facultatif) : une table avec les **mêmes identifiants de colonnes** que la table modèle. Toutes les réponses publiques y arrivent. Le code stage est enregistré dans une colonne : filtrez ou regroupez par stage dans Grist.
+
+## 1. Héberger `index.html` et `qrcode.html`
+Ce dépôt est prévu pour GitHub Pages (voir plus haut). Une seule copie suffit pour tous vos formulaires.
+
+Pour obtenir des liens plus courts, inscrivez l'URL du webhook n8n dans la constante `DEFAULT_API`, en haut du fichier. Le paramètre `&api=…` disparaît alors des liens et des QR codes.
+
+## 2. Ajouter le widget dans Grist
+1. Sur la page qui contient la table des réponses, ajoutez un widget **Personnalisé**.
+2. Saisissez l'URL de `index.html` (adresse GitHub Pages ci-dessus), choisissez l'accès **complet** au document, puis cliquez sur « Ouvrir la configuration ».
+3. Onglet **Contenus** : cliquez sur « Créer la table Contenus », ou choisissez une table existante. Cette table contient une ligne par texte, avec quatre colonnes :
+   - **Cle** : un nom court et unique ;
+   - **Composant** : la présentation DSFR (Paragraphe, Titre, Chapeau, Encadré, Mise en exergue, Information ou Attention) ;
+   - **Titre** : facultatif ;
+   - **Texte** : peut contenir plusieurs paragraphes, du **gras**, des listes et des liens.
+
+   Dans l'onglet Champs, ajoutez un « Bloc de texte » et choisissez l'entrée dans la liste : il s'affiche avec le composant indiqué dans la table.
+4. Onglet **Général** : titre, sous-titre, introduction, logo et en-tête de l'État (bloc-marque). Le titre, le sous-titre et l'introduction peuvent être saisis directement ou choisis dans la table Contenus.
+5. Onglet **Champs** : importez les colonnes de la table, puis ajoutez les sections, les blocs de texte et les conditions d'affichage.
+6. Onglet **Préremplissage** :
+   - créez une règle « quand le Code du stage est renseigné, chercher dans la table Stages, colonne Code » ;
+   - associez les colonnes Intitulé, Dates, Lieu… aux champs du formulaire ;
+   - cochez « Bloquer l'envoi si la valeur est introuvable ».
+
+   Le bouton **Ajouter Formulaire, Ouvert et Lien** complète ensuite la table Stages avec trois colonnes :
+   - **Formulaire** : le modèle de formulaire utilisé par le stage ;
+   - **Inscriptions ouvertes** : une case à cocher ;
+   - **Lien** : une formule qui calcule l'adresse du formulaire pour ce stage.
+
+   Renseignez d'abord l'onglet Publication, car la formule du Lien en a besoin. Si vous modifiez ensuite ces réglages, cliquez sur « Mettre à jour la colonne Lien ».
+
+## 2 bis. Ajouter le widget QR code à côté de la table Stages
+1. Ajoutez un widget **Personnalisé** avec l'URL de `qrcode.html`, sélectionné par la table Stages.
+2. Dans le panneau de droite, associez les colonnes : **Lien** (obligatoire), Titre (Intitulé), Code, Détails (Dates) et Ouvert (Inscriptions ouvertes).
+
+L'ENA sélectionne son stage et obtient directement :
+- le QR code ;
+- le lien à copier ;
+- l'affiche à imprimer ;
+- les affiches de tous les stages ouverts, d'un seul coup.
+
+Il ouvre ou ferme lui-même les inscriptions en cochant ou décochant la case de son stage.
+
+## 3. Installer le relais n8n
+1. Dans n8n, importez le fichier `n8n/workflow-n8n-formulaire-dsfr.json`.
+2. Créez une identification **Header Auth** nommée « Grist API » :
+   - nom : `Authorization` ;
+   - valeur : `Bearer <votre clé API Grist>`.
+
+   Sélectionnez-la dans les 5 nœuds HTTP du workflow.
+3. Dans le nœud **Paramètres**, renseignez l'URL de Grist et l'identifiant du document qui contient les tables Formulaires, Contenus et la table des réponses.
+4. Activez le workflow et copiez l'**URL de production** du nœud Webhook.
+
+La clé API doit appartenir à un compte qui a au moins accès en lecture complète aux documents utilisés pour le préremplissage. C'est nécessaire parce que n8n interroge ces documents via l'endpoint `/sql` de Grist.
+
+## 4. Publier
+Dans le widget, onglet **Publication & QR code** :
+1. Renseignez l'identifiant du formulaire, l'URL du webhook n8n et l'adresse de la page publique.
+2. Cliquez sur **Publier**. La configuration est copiée dans la table `Formulaires`, qui est créée si besoin.
+3. **Destination des réponses publiques** : indiquez l'identifiant du document des réponses et le nom de sa table. Laissez vide pour enregistrer dans le document principal.
+4. **Liens et QR codes par code** : choisissez le champ « Code du stage » et le nom du paramètre (par exemple `code`). La liste des stages s'affiche, avec pour chacun :
+   - son lien à copier, à envoyer par courriel aux personnes sans téléphone ;
+   - son QR code ;
+   - son affiche à imprimer.
+
+   Vous pouvez aussi imprimer toutes les affiches d'un coup, ou exporter tous les liens en CSV.
+
+   Le lien ouvre le formulaire avec le code déjà rempli et verrouillé, et les informations du stage préremplies.
+5. **Afficher aussi le QR code en haut du formulaire** : pratique sur un écran partagé ou en salle, pour continuer l'inscription sur son téléphone. Le QR code suit le code stage saisi. Il est masqué sur les petits écrans.
+
+À chaque modification du formulaire, cliquez de nouveau sur **Publier**. Pour suspendre un formulaire, décochez la case `Publie` dans la table `Formulaires`.
+
+## Ce que fait le relais n8n
+- **config** : renvoie le formulaire sans aucun détail interne (ni colonnes, ni tables, ni documents). Seules les entrées de la table Contenus utilisées par le formulaire sont envoyées, avec leur composant et leur titre.
+- **lookup** : renvoie uniquement les champs préremplis de la ligne trouvée. La comparaison ignore la casse et les espaces. Il est impossible de télécharger la table entière. Il signale aussi si les inscriptions sont closes, et ignore les stages rattachés à un autre formulaire.
+- **submit** : refait côté serveur toutes les vérifications du navigateur : champs obligatoires, expressions régulières, conditions, options proposées, et code stage existant, rattaché à ce formulaire et ouvert. Les champs masqués sont ignorés, ainsi que les colonnes non prévues. Un champ piège invisible bloque les robots.
+
+Si le navigateur affiche une erreur CORS, vérifiez l'option *Allowed Origins (CORS)* du nœud Webhook. Elle vaut `*` par défaut ; vous pouvez y mettre l'adresse de votre page publique.

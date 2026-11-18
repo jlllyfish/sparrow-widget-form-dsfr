@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="fr" data-fr-scheme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QR code du stage</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.12.1/dist/dsfr.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.12.1/dist/utility/icons/icons.min.css">
+<script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+<style>
+  [hidden]{display:none!important}
+  body{background:var(--background-default-grey)}
+  #app{padding:1rem;max-width:34rem;margin:0 auto;text-align:center}
+  .qr{width:220px;height:220px;image-rendering:pixelated;border:1px solid var(--border-default-grey);margin:.5rem auto 0;display:block}
+  .link{word-break:break-all;font-family:monospace;font-size:.75rem;background:var(--background-alt-grey);padding:.5rem;margin:1rem 0}
+  .row{display:flex;gap:.5rem;flex-wrap:wrap;justify-content:center}
+  .toast{position:fixed;top:.5rem;right:.5rem;z-index:10;background:var(--background-default-grey)}
+  #print-area{display:none}
+  @media print{
+    body>*:not(#print-area){display:none!important}
+    #print-area{display:block!important;text-align:center}
+    #print-area section{padding-top:2cm;break-after:page;page-break-after:always}
+    #print-area section:last-child{break-after:auto;page-break-after:auto}
+    #print-area img{width:10cm;height:10cm;image-rendering:pixelated}
+  }
+</style>
+</head>
+<body>
+<div id="app"><p class="fr-text--sm">Chargement…</p></div>
+<div id="toast" class="toast" hidden></div>
+<div id="print-area"></div>
+<script>
+(function () {
+'use strict';
+/* Widget Grist : QR code du stage sélectionné.
+   À placer à côté de la table Stages, en le liant à cette table.
+   Colonnes à associer dans le panneau de droite : Lien (obligatoire), Titre, Code, Détails, Ouvert. */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const app = $('#app');
+let current = null, all = [], mappingOk = true;
+
+function qrPng(text, cell = 10) {
+  qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
+  const qr = qrcode(0, 'M'); qr.addData(text); qr.make();
+  const n = qr.getModuleCount(), m = 4 * cell, size = n * cell + 2 * m;
+  const cv = document.createElement('canvas'); cv.width = cv.height = size;
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, size, size); ctx.fillStyle = '#000';
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (qr.isDark(r, c)) ctx.fillRect(m + c * cell, m + r * cell, cell, cell);
+  return cv.toDataURL('image/png');
+}
+function notify(msg) {
+  const t = $('#toast');
+  t.innerHTML = `<div class="fr-alert fr-alert--success fr-alert--sm"><p>${esc(msg)}</p></div>`;
+  t.hidden = false; setTimeout(() => { t.hidden = true; }, 2500);
+}
+const slug = s => String(s || 'stage').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+const closedOf = r => r.Ouvert === false;
+
+function poster(r) {
+  return `<section><h1 class="fr-h2">${esc(r.Titre || 'Inscription')}</h1>
+    ${r.Details ? `<p class="fr-text--lead">${esc(r.Details)}</p>` : ''}
+    ${r.Code ? `<p class="fr-text--lead">Code : <strong>${esc(r.Code)}</strong></p>` : ''}
+    <p class="fr-text--lead">Scannez ce QR code pour vous inscrire</p>
+    <img src="${qrPng(r.Lien, 20)}" alt="">
+    <p class="fr-text--sm fr-mt-2w" style="word-break:break-all">${esc(r.Lien)}</p></section>`;
+}
+function printPosters(list) {
+  $('#print-area').innerHTML = list.map(poster).join('');
+  setTimeout(() => window.print(), 50);
+}
+
+function render() {
+  if (!mappingOk) {
+    app.innerHTML = `<div class="fr-callout"><p class="fr-callout__text fr-text--md">Associez au moins la colonne <strong>Lien</strong>
+      dans le panneau de droite de Grist (section « Colonnes »).</p></div>`;
+    return;
+  }
+  if (!current) { app.innerHTML = '<p class="fr-text--sm">Sélectionnez un stage dans la table.</p>'; return; }
+  const r = current;
+  const openList = all.filter(x => x.Lien && !closedOf(x));
+  app.innerHTML = `
+    <h2 class="fr-h5 fr-mb-1w">${esc(r.Titre || r.Code || 'Stage')}</h2>
+    ${r.Code ? `<p class="fr-text--sm fr-mb-1w">Code : <strong>${esc(r.Code)}</strong></p>` : ''}
+    ${r.Details ? `<p class="fr-text--sm fr-mb-1w">${esc(r.Details)}</p>` : ''}
+    ${closedOf(r) ? '<p class="fr-badge fr-badge--warning">Inscriptions closes</p>' : ''}
+    ${r.Lien ? `<img class="qr" src="${qrPng(r.Lien)}" alt="QR code du stage ${esc(r.Code || '')}">
+      <p class="link">${esc(r.Lien)}</p>
+      <div class="row">
+        <button class="fr-btn fr-btn--sm fr-icon-download-line fr-btn--icon-left" id="b-png">Télécharger</button>
+        <button class="fr-btn fr-btn--sm fr-btn--secondary fr-icon-links-line fr-btn--icon-left" id="b-copy">Copier le lien</button>
+        <button class="fr-btn fr-btn--sm fr-btn--tertiary fr-icon-printer-line fr-btn--icon-left" id="b-print">Imprimer l’affiche</button>
+      </div>` : '<p class="fr-text--sm fr-mt-2w">Ce stage n’a pas encore de lien.</p>'}
+    ${openList.length > 1 ? `<p class="fr-mt-3w"><button class="fr-btn fr-btn--sm fr-btn--tertiary-no-outline fr-icon-printer-line fr-btn--icon-left" id="b-all">
+      Imprimer les affiches des ${openList.length} stages ouverts</button></p>` : ''}`;
+  const on = (id, fn) => { const b = document.getElementById(id); if (b) b.onclick = fn; };
+  on('b-png', () => { const a = document.createElement('a'); a.href = qrPng(r.Lien, 20); a.download = `qrcode-${slug(r.Code || r.Titre)}.png`; document.body.appendChild(a); a.click(); a.remove(); });
+  on('b-copy', async () => {
+    try { await navigator.clipboard.writeText(r.Lien); }
+    catch (e) { const t = document.createElement('textarea'); t.value = r.Lien; document.body.appendChild(t); t.select(); try { document.execCommand('copy'); } catch (e2) { /* */ } t.remove(); }
+    notify('Lien copié.');
+  });
+  on('b-print', () => printPosters([r]));
+  on('b-all', () => printPosters(openList));
+}
+
+grist.ready({
+  requiredAccess: 'read table',
+  columns: [
+    { name: 'Lien', title: 'Lien du formulaire', type: 'Text' },
+    { name: 'Titre', title: 'Titre (ex. intitulé du stage)', optional: true },
+    { name: 'Code', title: 'Code du stage', optional: true },
+    { name: 'Details', title: 'Détails (dates, lieu…)', optional: true },
+    { name: 'Ouvert', title: 'Inscriptions ouvertes', type: 'Bool', optional: true }
+  ]
+});
+grist.onRecord(rec => {
+  const m = grist.mapColumnNames(rec);
+  mappingOk = !!m;
+  current = m;
+  render();
+});
+grist.onRecords(recs => {
+  all = recs.map(r => grist.mapColumnNames(r)).filter(Boolean);
+  render();
+});
+})();
+</script>
+</body>
+</html>
