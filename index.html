@@ -79,6 +79,10 @@
   .bld-row3{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem}
   .bld-map{display:grid;grid-template-columns:1fr auto 1fr auto;gap:.5rem;align-items:center;margin-bottom:.5rem}
   .bld-map .fr-select-group,.bld-map .fr-input-group{margin:0}
+  .bld-map--head{font-size:.75rem;color:var(--text-mention-grey);margin-bottom:.25rem}
+  .bld-step{display:flex;align-items:center;gap:.6rem;font-weight:700;margin:1.75rem 0 .25rem}
+  .bld-step__n{display:inline-flex;align-items:center;justify-content:center;width:1.6rem;height:1.6rem;border-radius:50%;
+    background:var(--background-action-high-blue-france);color:var(--text-inverted-blue-france);font-size:.85rem}
   .bld-insert{margin:-1rem 0 1.5rem}
   .bld-insert select{font-size:.8rem;padding:.2rem .4rem;border:1px solid var(--border-default-grey);background:var(--background-default-grey);color:var(--text-action-high-blue-france);max-width:100%}
   .bld-md-help{font-size:.75rem;color:var(--text-mention-grey);margin:-1rem 0 1.5rem}
@@ -391,7 +395,7 @@ function newField(type, label) {
     id: uid('f'), type, label: label ?? TYPES[type], hint: '', placeholder: '', colId: '', style: 'paragraphe', contentKey: '',
     required: false, options: [], regexPreset: 'none', regex: '', regexMessage: '', condition: null
   };
-  if (type === 'contenu') f.label = '';
+  if (type === 'contenu' && label == null) f.label = '';
   fixField(f);
   return f;
 }
@@ -1484,9 +1488,9 @@ function conditionHtml(f, i, p) {
 function lookupsTab() {
   const tables = Object.keys(schema).sort();
   const intro = `<div class="fr-callout fr-mb-4w"><p class="fr-callout__text fr-text--md">
-    Quand l’usager renseigne un champ (ex. son adresse électronique), le formulaire cherche la valeur dans une table
-    et recopie les colonnes choisies. La comparaison ignore la casse et les espaces. La table peut se trouver dans
-    un autre document Grist : la recherche passe alors par le relais n8n (après publication).</p></div>`;
+    Quand l’usager choisit un code (par exemple celui de sa formation), le formulaire retrouve la ligne correspondante
+    dans une table Grist et s’adapte : titre, sections, blocs de texte et champs prennent les valeurs de cette ligne.
+    La comparaison ignore les majuscules et les espaces.</p></div>`;
   return intro + config.lookups.map((l, i) => lookupHtml(l, i, tables)).join('') +
     `<button type="button" class="fr-btn fr-btn--secondary fr-icon-add-line fr-btn--icon-left" data-act="addLookup">Ajouter une règle de préremplissage</button>`;
 }
@@ -1495,47 +1499,52 @@ function lookupHtml(l, i, tables) {
   const inputs = config.fields.filter(isInput);
   const ext = !!l.external;
   const srcCols = ext ? [] : colsOf(l.tableId);
-  const colOpts = [['', '— colonne source —'], ...srcCols.map(c => [c.colId, c.label])];
-  const where = ext
-    ? `${inputCtl('Identifiant du document', p + 'docId', l.docId, { hint: 'Dans l’adresse du document : /doc/<strong>identifiant</strong>', attrs: ' spellcheck="false"' })}
-       ${inputCtl('Identifiant de la table', p + 'tableId', l.tableId, { placeholder: 'Agents', attrs: ' spellcheck="false"' })}
-       ${inputCtl('Colonne de correspondance', p + 'keyColId', l.keyColId, { placeholder: 'Email', attrs: ' spellcheck="false"' })}`
-    : `${selectCtl('…chercher dans la table', p + 'tableId', [['', '— choisir —'], ...tables.map(t => [t, t])], l.tableId)}
-       ${selectCtl('…colonne de correspondance', p + 'keyColId', [['', '— choisir —'], ...srcCols.map(c => [c.colId, c.label])], l.keyColId)}`;
+  const tname = l.tableId || 'la table';
+  const colSel = (bind, val, first, o = {}) => ext
+    ? inputCtl(o.label || '', bind, val, { placeholder: o.ph || 'Identifiant de colonne', attrs: ' spellcheck="false"', hint: o.hint })
+    : selectCtl(o.label || '', bind, [['', first], ...(o.cols || srcCols).map(c => [c.colId, c.label])], val, { hint: o.hint, aria: o.aria });
+  const step = (n, t, sub) => `<p class="bld-step"><span class="bld-step__n">${n}</span>${t}</p>${sub ? `<p class="fr-text--xs fr-mb-2w">${sub}</p>` : ''}`;
   return `<div class="bld-card">
     <div class="bld-card__head"><h3 class="fr-h6 fr-mb-0">Règle ${i + 1}</h3>
       <button type="button" class="fr-btn fr-btn--sm fr-btn--tertiary-no-outline fr-icon-delete-line fr-btn--icon-left" data-act="delLookup" data-i="${i}">Supprimer la règle</button></div>
-    ${selectCtl('Quand ce champ est renseigné…', p + 'triggerFieldId', [['', '— choisir —'], ...inputs.map(f => [f.id, resolve(f.label)])], l.triggerFieldId)}
-    ${checkCtl('La table se trouve dans un autre document Grist', p + 'external', ext, 'Recherche via n8n : les colonnes s’indiquent par leur identifiant Grist.')}
-    <div class="bld-row3">${where}</div>
-    <div class="bld-row3">${ext
-      ? `${inputCtl('Colonne « inscriptions ouvertes » (facultatif)', p + 'openColId', l.openColId, { placeholder: 'Inscriptions_ouvertes', attrs: ' spellcheck="false"' })}
-         ${inputCtl('Colonne « formulaire » (facultatif)', p + 'formColId', l.formColId, { placeholder: 'Formulaire', attrs: ' spellcheck="false"' })}`
-      : `${selectCtl('Colonne « inscriptions ouvertes » (facultatif)', p + 'openColId', [['', '— aucune —'], ...srcCols.filter(c => c.type === 'Bool').map(c => [c.colId, c.label])], l.openColId, { hint: 'Case décochée : le code est refusé.' })}
-         ${selectCtl('Colonne « formulaire » (facultatif)', p + 'formColId', [['', '— aucune —'], ...srcCols.map(c => [c.colId, c.label])], l.formColId, { hint: 'Seuls les codes rattachés à ce formulaire sont acceptés.' })}`}
-      ${ext ? inputCtl('Colonne affichée dans la liste (facultatif)', p + 'labelColId', l.labelColId, { placeholder: 'Intitule', attrs: ' spellcheck="false"' })
-        : selectCtl('Colonne affichée dans la liste (facultatif)', p + 'labelColId', [['', '— aucune —'], ...srcCols.map(c => [c.colId, c.label])], l.labelColId, { hint: 'Ex. l’intitulé, à côté du code, pour un champ « Choix dans une table ».' })}
-      ${!ext && l.tableId && l.keyColId ? `<div><p class="fr-text--sm fr-mb-1w">Gestion des stages depuis Grist</p>
-        <button type="button" class="fr-btn fr-btn--sm fr-btn--secondary fr-icon-settings-5-line fr-btn--icon-left" data-act="prepStages" data-i="${i}">${colsOf(l.tableId).some(c => c.colId === 'Lien') ? 'Mettre à jour la colonne Lien' : 'Ajouter Formulaire, Ouvert et Lien'}</button></div>` : ''}
+
+    ${step(1, 'Où trouver les informations', 'Le code choisi ou saisi dans le formulaire est cherché dans une table Grist.')}
+    <div class="bld-row3">
+      ${selectCtl('Champ du formulaire qui contient le code', p + 'triggerFieldId', [['', '— choisir —'], ...inputs.map(f => [f.id, resolve(f.label)])], l.triggerFieldId)}
+      ${ext ? inputCtl('Table (identifiant)', p + 'tableId', l.tableId, { placeholder: 'Stages', attrs: ' spellcheck="false"' })
+        : selectCtl('Table où chercher', p + 'tableId', [['', '— choisir —'], ...tables.map(t => [t, t])], l.tableId)}
+      ${colSel(p + 'keyColId', l.keyColId, '— choisir —', { label: 'Colonne qui contient le code', ph: 'Code' })}
     </div>
-    <p class="fr-text--sm fr-mb-1w"><strong>Correspondances : colonne de la ligne choisie → élément du formulaire</strong></p>
-    <p class="fr-text--xs fr-mb-2w">Un bloc de texte, une section, le titre ou le sous-titre peuvent afficher une colonne de la ligne choisie : le formulaire s’adapte à la formation.</p>
+    <div class="bld-row3">
+      ${colSel(p + 'labelColId', l.labelColId, '— aucune —', { label: 'Texte affiché à côté du code dans la liste', ph: 'Libelle', hint: 'Ex. le libellé du stage (facultatif).' })}
+      ${ext ? inputCtl('Identifiant du document', p + 'docId', l.docId, { hint: 'Visible dans l’adresse du document : /doc/<strong>identifiant</strong>', attrs: ' spellcheck="false"' }) : ''}
+    </div>
+    ${checkCtl('La table se trouve dans un autre document Grist', p + 'external', ext, 'La recherche passe alors par n8n ; les colonnes s’indiquent par leur identifiant Grist.')}
+
+    ${step(2, `Ce que la ligne trouvée affiche dans le formulaire`, 'Pour chaque colonne utile, choisissez où elle s’affiche : titre ou sous-titre du formulaire, section, bloc de texte, ou champ à préremplir.')}
+    ${l.mappings.length ? `<div class="bld-map bld-map--head"><span>Colonne de ${esc(tname)}</span><span></span><span>s’affiche dans</span><span></span></div>` : ''}
     ${l.mappings.map((m, j) => `<div class="bld-map">
+      ${colSel(`${p}mappings.${j}.colId`, m.colId, '— colonne —', { aria: 'Colonne de la table' })}
+      <span class="fr-icon-arrow-right-line" aria-hidden="true"></span>
       ${selectCtl('', `${p}mappings.${j}.fieldId`, targetOptions(l), m.fieldId, { aria: 'Élément du formulaire' })}
-      <span class="fr-icon-arrow-left-line" aria-hidden="true"></span>
-      ${ext ? `<div class="fr-input-group"><input class="fr-input" data-bind="${p}mappings.${j}.colId" value="${esc(m.colId)}" placeholder="Identifiant de colonne" aria-label="Colonne source" spellcheck="false"></div>`
-        : selectCtl('', `${p}mappings.${j}.colId`, colOpts, m.colId, { aria: 'Colonne source' })}
       ${iconBtn('delMap', 'fr-icon-close-line', 'Retirer', `data-i="${i}" data-j="${j}"`)}
-    </div>`).join('') || '<p class="fr-text--xs fr-text-mention--grey">Aucune correspondance.</p>'}
-    <div class="bld-btnrow fr-mb-3w">
-      <button type="button" class="fr-btn fr-btn--sm fr-btn--tertiary fr-icon-add-line fr-btn--icon-left" data-act="addMap" data-i="${i}">Ajouter une correspondance</button>
-      ${ext ? '' : `<button type="button" class="fr-btn fr-btn--sm fr-btn--tertiary fr-icon-refresh-line fr-btn--icon-left" data-act="autoMap" data-i="${i}"${l.tableId ? '' : ' disabled'}>Associer automatiquement (par libellé)</button>`}
+    </div>`).join('') || '<p class="fr-text--sm fr-text-mention--grey">Aucune correspondance. Exemple : « Libellé stage » → « Titre du formulaire ».</p>'}
+    <div class="bld-btnrow fr-mb-4w">
+      <button type="button" class="fr-btn fr-btn--sm fr-btn--secondary fr-icon-add-line fr-btn--icon-left" data-act="addMap" data-i="${i}">Ajouter une correspondance</button>
+      ${ext ? '' : `<button type="button" class="fr-btn fr-btn--sm fr-btn--tertiary fr-icon-refresh-line fr-btn--icon-left" data-act="autoMap" data-i="${i}"${l.tableId ? '' : ' disabled'}>Associer automatiquement (mêmes libellés)</button>`}
     </div>
-    ${checkCtl('Verrouiller les champs préremplis', p + 'lock', l.lock, 'L’usager ne peut pas les modifier.')}
-    ${checkCtl('Bloquer l’envoi si la valeur est introuvable', p + 'mustMatch', l.mustMatch, 'Utile pour réserver le formulaire aux personnes déjà référencées. Contrôlé aussi par n8n.')}
+
+    ${step(3, 'Contrôles (facultatif)')}
+    ${checkCtl('Refuser un code qui n’existe pas dans la table', p + 'mustMatch', l.mustMatch, 'Contrôlé aussi par n8n au moment de l’envoi.')}
+    ${checkCtl('Empêcher l’usager de modifier les champs préremplis', p + 'lock', l.lock)}
+    <div class="bld-row3">
+      ${colSel(p + 'openColId', l.openColId, '— aucune —', { label: 'Colonne « ouvert / fermé »', ph: 'Inscriptions_ouvertes', cols: srcCols.filter(c => c.type === 'Bool'), hint: 'Case décochée dans la table : le code est refusé.' })}
+      ${colSel(p + 'formColId', l.formColId, '— aucune —', { label: 'Colonne « formulaire »', ph: 'Formulaire', hint: 'Seuls les codes rattachés à ce formulaire sont proposés.' })}
+      ${!ext && l.tableId && l.keyColId ? `<div><p class="fr-label fr-mb-1w">Raccourci</p>
+        <button type="button" class="fr-btn fr-btn--sm fr-btn--tertiary fr-icon-settings-5-line fr-btn--icon-left" data-act="prepStages" data-i="${i}">${colsOf(l.tableId).some(c => c.colId === 'Lien') ? 'Mettre à jour la colonne Lien' : 'Créer ces colonnes et la colonne Lien'}</button></div>` : ''}
+    </div>
   </div>`;
 }
-
 function targetOptions(l) {
   const disp = f => f.type === 'contenu' ? `Bloc de texte : ${itemLabel(f)}` : `Section : ${itemLabel(f)}`;
   return [['', '— élément du formulaire —'],
@@ -2152,7 +2161,7 @@ function demoConfig() {
   const code = F('tableselect', 'Formation suivie', { required: true, colId: 'Code_formation',
     hint: 'Choisissez dans la liste (ex. NAS0EA0001) ou tapez un mot de l’intitulé' });
   const s1 = F('section', 'La formation');
-  const infos = F('contenu', '', { style: 'paragraphe' });
+  const infos = F('contenu', 'Informations pratiques', { style: 'paragraphe' });
   const objectifs = F('contenu', 'Objectifs de la formation', { style: 'encadre' });
   const s2 = F('section', 'Votre avis');
   const satisf = F('radio', 'Globalement, êtes-vous satisfait de cette formation ?', { required: true, colId: 'Satisfaction',
