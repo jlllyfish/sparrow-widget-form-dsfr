@@ -10,6 +10,8 @@ Formulaires publics au design de l'État (DSFR, inspiré de Démarche Numérique
 
 Pour activer GitHub Pages : **Settings → Pages → Build and deployment**, choisissez « Deploy from a branch », la branche `main` et le dossier `/ (root)`.
 
+Les pages ne dépendent d'aucun site externe : le DSFR (v1.12.1, polices et icônes) et la bibliothèque de QR code sont inclus dans le dossier `vendor/`. Dans Grist, l'API des widgets est chargée depuis l'instance Grist elle-même, avec docs.getgrist.com en secours.
+
 ## Mise en place
 
 Trois fichiers :

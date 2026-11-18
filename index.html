@@ -4,10 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Formulaire</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.12.1/dist/dsfr.min.css">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.12.1/dist/utility/icons/icons.min.css">
-<script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+<link rel="stylesheet" href="vendor/dsfr/dsfr.min.css">
+<link rel="stylesheet" href="vendor/dsfr/utility/icons/icons.min.css">
+<script src="vendor/qrcode.js"></script>
 <style>
   [hidden]{display:none!important}
   html{scroll-padding-bottom:7rem}
@@ -119,7 +118,7 @@
 <div id="print-area"></div>
 
 <script>
-(function () {
+function startApp() {
 'use strict';
 
 /* =====================================================================
@@ -2069,6 +2068,34 @@ if (inGrist) {
   });
 }
 
+}
+</script>
+<script>
+/* Chargement de l'API Grist seulement dans Grist, depuis l'instance Grist elle-même
+   (repli sur docs.getgrist.com), sans jamais bloquer l'affichage de la page publique. */
+(function () {
+  function load(src, ms) {
+    return new Promise(function (ok, ko) {
+      var s = document.createElement('script');
+      var t = setTimeout(function () { s.remove(); ko(new Error('délai dépassé')); }, ms);
+      s.onload = function () { clearTimeout(t); ok(); };
+      s.onerror = function () { clearTimeout(t); s.remove(); ko(new Error('échec du chargement')); };
+      s.src = src;
+      document.head.appendChild(s);
+    });
+  }
+  async function boot() {
+    if (window.parent !== window) {
+      var origin = '';
+      try { origin = document.referrer ? new URL(document.referrer).origin : ''; } catch (e) { /* ignore */ }
+      var list = (origin ? [origin + '/grist-plugin-api.js'] : []).concat(['https://docs.getgrist.com/grist-plugin-api.js']);
+      for (var i = 0; i < list.length && typeof grist === 'undefined'; i++) {
+        try { await load(list[i], 8000); } catch (e) { console.warn('API Grist non chargée depuis ' + list[i] + ' : ' + e.message); }
+      }
+    }
+    startApp();
+  }
+  boot();
 })();
 </script>
 </body>
