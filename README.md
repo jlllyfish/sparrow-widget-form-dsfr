@@ -31,7 +31,7 @@ Les répondants n'ont jamais accès au document Grist.
 ## Organisation des données
 - **Document principal** :
   - le widget de configuration ;
-  - la table `Formulaires` (configuration publiée) ;
+  - la table `Formulaires` : une ligne par formulaire, avec le **brouillon** (bouton Enregistrer du widget) et la **configuration publiée** (bouton Publier), lue par n8n ;
   - la table `Contenus` (textes) ;
   - la table `Stages`, avec les colonnes Code, Intitulé, Dates…, **Formulaire**, **Inscriptions ouvertes** et **Lien** ;
   - une table **modèle** des réponses, sur laquelle le widget est posé.
@@ -97,9 +97,9 @@ La clé API doit appartenir à un compte qui a au moins accès en lecture compl�
 ## 4. Publier
 Dans le widget, onglet **Publication & QR code** :
 1. Renseignez l'identifiant du formulaire, l'URL du webhook n8n et l'adresse de la page publique.
-2. Cliquez sur **Publier**. La configuration est copiée dans la table `Formulaires`, qui est créée si besoin.
+2. Cliquez sur **Publier**. Le brouillon enregistré dans la table `Formulaires` devient la version en ligne. Sans l'adresse du webhook n8n, aucun lien ni QR code n'est généré, car le formulaire public ne pourrait pas fonctionner.
 3. **Destination des réponses publiques** : indiquez l'identifiant du document des réponses et le nom de sa table. Laissez vide pour enregistrer dans le document principal.
-4. **Liens et QR codes par code** : choisissez le champ « Code du stage » et le nom du paramètre (par exemple `code`). La liste des stages s'affiche, avec pour chacun :
+4. **Un lien et un QR code par formation** : le lien public général ouvre le formulaire sans formation choisie. Ici, chaque formation reçoit son propre lien, qui ouvre le formulaire déjà adapté à elle. Choisissez le champ qui reçoit le code de la formation : la liste des formations s'affiche, avec pour chacune :
    - son lien à copier, à envoyer par courriel aux personnes sans téléphone ;
    - son QR code ;
    - son affiche à imprimer.

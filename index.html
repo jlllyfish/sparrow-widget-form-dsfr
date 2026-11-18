@@ -28,6 +28,12 @@
   .dn-section__num{display:inline-flex;align-items:center;justify-content:center;width:2rem;height:2rem;border-radius:50%;
     background:var(--background-action-high-blue-france);color:var(--text-inverted-blue-france);font-size:1rem;margin-right:.75rem}
   .dn-block{margin-bottom:1.75rem}
+  .dn-block>.fr-label,.dn-block>.fr-fieldset__legend,.dn-block .fr-checkbox-group>.fr-label{font-weight:700}
+  .dn-block .fr-hint-text{font-weight:400}
+  .dn-cols-2>.fr-fieldset__element{flex:0 0 50%;max-width:50%}
+  .dn-cols-3>.fr-fieldset__element{flex:0 0 33.333%;max-width:33.333%}
+  .dn-inline>.fr-fieldset__element{flex:0 0 auto;width:auto;max-width:none;margin-right:2rem}
+  @media (max-width:576px){.dn-cols-2>.fr-fieldset__element,.dn-cols-3>.fr-fieldset__element{flex-basis:100%;max-width:100%}}
   .dn-block.fr-fieldset{margin-bottom:1rem}
   .dn-text p,.dn-text ul,.dn-text ol{margin-bottom:1rem}
   .dn-text>*:last-child,.dn-text>*:last-child>*:last-child{margin-bottom:0}
@@ -154,7 +160,8 @@ const TYPES = {
   date: 'Date',
   select: 'Liste déroulante',
   radio: 'Choix unique (boutons radio)',
-  checkbox: 'Case à cocher (oui/non)',
+  yesno: 'Oui / Non',
+  checkbox: 'Case à cocher (une seule case)',
   checkboxes: 'Choix multiple (cases à cocher)'
 };
 const BLOCK_STYLES = [
@@ -241,7 +248,7 @@ function validateField(f, v) {
   if (f.required && isEmpty(v)) {
     if (f.type === 'checkbox') return 'Vous devez cocher cette case.';
     if (f.type === 'checkboxes') return 'Cochez au moins une option.';
-    return CHOICE_TYPES.includes(f.type) ? 'Sélectionnez une option.' : 'Ce champ est obligatoire.';
+    return CHOICE_TYPES.includes(f.type) || f.type === 'yesno' ? 'Sélectionnez une option.' : 'Ce champ est obligatoire.';
   }
   if (isEmpty(v)) return '';
   if (f.type === 'number' && isNaN(Number(String(v).replace(',', '.').replace(/\s/g, '')))) return 'Saisissez un nombre.';
@@ -255,7 +262,7 @@ function validateField(f, v) {
 }
 function toGristTyped(f, v, t) {
   t = t || '';
-  if (t === 'Bool') return typeof v === 'boolean' ? v : /^(oui|true|1|yes|vrai)$/i.test(String(v));
+  if (t === 'Bool') return typeof v === 'boolean' ? v : (v === '' || v == null ? null : /^(oui|true|1|yes|vrai)$/i.test(String(v)));
   if (t === 'Numeric' || t === 'Int') {
     if (v === '' || v == null) return null;
     const n = Number(String(v).replace(',', '.').replace(/\s/g, ''));
@@ -393,7 +400,7 @@ function defaultConfig() {
 function newField(type, label) {
   const f = {
     id: uid('f'), type, label: label ?? TYPES[type], hint: '', placeholder: '', colId: '', style: 'paragraphe', contentKey: '',
-    required: false, options: [], regexPreset: 'none', regex: '', regexMessage: '', condition: null
+    required: false, options: [], layout: '', regexPreset: 'none', regex: '', regexMessage: '', condition: null
   };
   if (type === 'contenu' && label == null) f.label = '';
   fixField(f);
@@ -821,11 +828,15 @@ function fieldHtml(f, secNum) {
         <select class="fr-select" id="${id}" name="${id}"><option value="">Sélectionner une option</option>
         ${opts.map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('')}</select>${errP}${status}</div>`;
     case 'radio':
+    case 'yesno':
     case 'checkboxes': {
-      const isR = f.type === 'radio';
-      return `<fieldset class="dn-block fr-fieldset" data-fid="${f.id}" aria-labelledby="lg_${f.id} msg_${f.id}">
+      const isR = f.type !== 'checkboxes';
+      const list = f.type === 'yesno' ? ['Oui', 'Non'] : opts;
+      const lay = f.layout || (f.type === 'yesno' ? 'inline' : '');
+      const layCls = lay === 'inline' ? ' dn-inline' : lay ? ` dn-cols-${lay}` : '';
+      return `<fieldset class="dn-block fr-fieldset${layCls}" data-fid="${f.id}" aria-labelledby="lg_${f.id} msg_${f.id}">
         <legend class="fr-fieldset__legend fr-fieldset__legend--regular" id="lg_${f.id}">${label}${req}${hint}</legend>
-        ${opts.map((o, i) => `<div class="fr-fieldset__element"><div class="${isR ? 'fr-radio-group' : 'fr-checkbox-group'}">
+        ${list.map((o, i) => `<div class="fr-fieldset__element"><div class="${isR ? 'fr-radio-group' : 'fr-checkbox-group'}">
           <input type="${isR ? 'radio' : 'checkbox'}" id="${id}_${i}" name="${id}" value="${esc(o)}">
           <label class="fr-label" for="${id}_${i}">${esc(o)}</label></div></div>`).join('')}
         <div class="fr-messages-group" id="msg_${f.id}" aria-live="assertive"><p class="fr-message fr-message--error" id="err_${f.id}" hidden></p></div>
@@ -851,7 +862,7 @@ function getValue(f) {
   const id = 'in_' + f.id;
   switch (f.type) {
     case 'section': case 'contenu': case 'explication': return null;
-    case 'radio': { const el = $(`input[name="${id}"]:checked`); return el ? el.value : ''; }
+    case 'radio': case 'yesno': { const el = $(`input[name="${id}"]:checked`); return el ? el.value : ''; }
     case 'checkboxes': return $$(`input[name="${id}"]:checked`).map(e => e.value);
     case 'checkbox': { const el = document.getElementById(id); return !!(el && el.checked); }
     default: { const el = document.getElementById(id); return el ? el.value.trim() : ''; }
@@ -861,6 +872,8 @@ function setValue(f, v) {
   const id = 'in_' + f.id;
   switch (f.type) {
     case 'radio':
+    case 'yesno':
+      if (typeof v === 'boolean') v = v ? 'Oui' : 'Non';
       $$(`input[name="${id}"]`).forEach(e => { e.checked = norm(e.value) === norm(v); });
       break;
     case 'checkboxes': {
@@ -925,7 +938,7 @@ function showError(f, msg) {
   if (err) { err.textContent = msg || ''; err.hidden = !msg; }
   if (msg) b.dataset.err = '1'; else delete b.dataset.err;
   const on = !!msg;
-  if (f.type === 'radio' || f.type === 'checkboxes') b.classList.toggle('fr-fieldset--error', on);
+  if (f.type === 'radio' || f.type === 'yesno' || f.type === 'checkboxes') b.classList.toggle('fr-fieldset--error', on);
   else if (f.type === 'checkbox') { const g = $('#grp_' + f.id); if (g) g.classList.toggle('fr-checkbox-group--error', on); }
   else if (f.type === 'select') { b.classList.toggle('fr-select-group--error', on); const s = $('select', b); if (s) s.classList.toggle('fr-select--error', on); }
   else { b.classList.toggle('fr-input-group--error', on); const i = $('.fr-input', b); if (i) { i.classList.toggle('fr-input--error', on); i.setAttribute('aria-invalid', on ? 'true' : 'false'); } }
@@ -1275,6 +1288,7 @@ function renderBuilder() {
   app.innerHTML = `<div class="bld">
     <div class="bld-top">
       <div><p class="fr-h5">Configuration du formulaire</p>
+        <p class="fr-text--xs fr-text-mention--grey">Enregistré comme brouillon dans la table « ${FORMS_TABLE} » · « Publier » met en ligne.</p>
         <p class="fr-text--xs fr-text-mention--grey">Table modèle (et réponses dans Grist) : <strong>${esc(targetTableId || '…')}</strong>${config.responsesDocId
           ? ` · réponses publiques : document <strong>${esc(config.responsesDocId)}</strong>, table <strong>${esc(config.responsesTableId || targetTableId || '')}</strong>` : ''}</p></div>
       <div class="bld-actions">
@@ -1370,7 +1384,7 @@ function fieldsTab() {
     <div>
       <div class="bld-addbar">
         ${selectCtl('Ajouter un élément', 'ui.addType', Object.entries(TYPES), 'text')}
-        <button type="button" class="fr-btn fr-btn--sm fr-icon-add-line" data-act="add" title="Ajouter">Ajouter</button>
+        <button type="button" class="fr-btn fr-btn--sm fr-icon-add-line fr-btn--icon-left" data-act="add">Ajouter</button>
       </div>
       <button type="button" class="fr-btn fr-btn--sm fr-btn--tertiary fr-icon-download-line fr-btn--icon-left fr-mb-2w" data-act="import">Importer les colonnes de la table</button>
       <div>${list}</div>
@@ -1429,6 +1443,10 @@ function editorHtml(f, i) {
     if (f.colId && config.fields.some(o => o !== f && o.colId === f.colId)) h += '<p class="fr-message fr-message--warning fr-mb-2w">Un autre champ écrit déjà dans cette colonne.</p>';
     h += checkCtl('Champ obligatoire', p + 'required', f.required);
     if (['text', 'textarea', 'email', 'tel', 'number'].includes(f.type)) h += inputCtl('Exemple de saisie (placeholder)', p + 'placeholder', f.placeholder);
+    if (['radio', 'checkboxes', 'yesno'].includes(f.type)) {
+      h += selectCtl('Disposition des choix', p + 'layout', [['', 'Une colonne'], ['2', 'Deux colonnes'], ['3', 'Trois colonnes'], ['inline', 'Sur une ligne']],
+        f.layout || (f.type === 'yesno' ? 'inline' : ''));
+    }
     if (CHOICE_TYPES.includes(f.type)) {
       h += textareaCtl('Options (une par ligne)', p + 'options', (f.options || []).join('\n'), { rows: 5, kind: 'lines' });
       if (col && col.choices.length) h += `<button type="button" class="fr-btn fr-btn--sm fr-btn--tertiary fr-mb-2w" data-act="choicesFromCol" data-id="${f.id}">Reprendre les ${col.choices.length} choix de la colonne</button>`;
@@ -1472,8 +1490,8 @@ function conditionHtml(f, i, p) {
     const op = c.op || 'eq';
     h += selectCtl('Condition', p + 'condition.op', OPS, op);
     if (!['empty', 'notEmpty'].includes(op)) {
-      if (src && (CHOICE_TYPES.includes(src.type) || src.type === 'checkbox') && ['eq', 'neq'].includes(op)) {
-        const vals = src.type === 'checkbox' ? ['Oui', 'Non'] : src.options;
+      if (src && (CHOICE_TYPES.includes(src.type) || src.type === 'checkbox' || src.type === 'yesno') && ['eq', 'neq'].includes(op)) {
+        const vals = src.type === 'checkbox' || src.type === 'yesno' ? ['Oui', 'Non'] : src.options;
         h += selectCtl('Valeur', p + 'condition.value', [['', '— choisir —'], ...vals.map(v => [v, v])], c.value || '');
       } else {
         h += inputCtl('Valeur', p + 'condition.value', c.value || '');
@@ -1556,7 +1574,7 @@ function targetOptions(l) {
 /* ---------- onglet Publication & QR ---------- */
 function publicLink() {
   const base = (config.publicUrl || '').trim();
-  if (!base || !config.slug) return '';
+  if (!base || !config.slug || !(config.apiUrl || DEFAULT_API)) return '';
   try {
     const u = new URL(base);
     u.searchParams.set('f', config.slug);
@@ -1576,7 +1594,8 @@ function publishTab() {
       ${inputCtl('Adresse du webhook n8n', 'apiUrl', config.apiUrl, { type: 'url', placeholder: 'https://n8n.exemple.gouv.fr/webhook/formulaire-dsfr' })}
       ${inputCtl('Adresse de la page publique', 'publicUrl', config.publicUrl, { type: 'url', placeholder: 'https://votre-compte.github.io/formulaires/', hint: 'Adresse où est hébergé ce même fichier index.html.' })}
       <p class="fr-text--sm fr-mb-1w"><strong>Lien public</strong></p>
-      <p class="bld-link" id="public-link">${link ? esc(link) : 'Renseignez l’identifiant et l’adresse de la page publique.'}</p>
+      ${!(config.apiUrl || DEFAULT_API) ? `<div class="fr-alert fr-alert--warning fr-alert--sm fr-mb-2w"><p>Sans l’adresse du webhook n8n, le formulaire public ne peut ni se charger ni enregistrer de réponse : les liens et QR codes ne sont pas générés.</p></div>` : ''}
+      <p class="bld-link" id="public-link">${link ? esc(link) : 'Renseignez l’identifiant, l’adresse du webhook n8n et l’adresse de la page publique.'}</p>
       <div class="bld-btnrow fr-mt-0 fr-mb-3w">
         <button type="button" class="fr-btn fr-btn--sm fr-icon-upload-line fr-btn--icon-left" data-act="publish">${inGrist ? 'Publier / mettre à jour' : 'Publier (dans Grist uniquement)'}</button>
         <button type="button" class="fr-btn fr-btn--sm fr-btn--tertiary fr-icon-links-line fr-btn--icon-left" data-act="copyPublic"${link ? '' : ' disabled'}>Copier le lien public</button>
@@ -1610,14 +1629,19 @@ function publishTab() {
 const codesRule = () => config.lookups.find(l => l.triggerFieldId === config.urlField && !l.external && l.tableId && l.keyColId);
 function codesSection() {
   const inputs = config.fields.filter(isInput);
+  if (!config.urlField) {   // proposition par défaut : le champ « choix dans une table »
+    const ts = inputs.filter(f => f.type === 'tableselect');
+    if (ts.length === 1) config.urlField = ts[0].id;
+  }
   const rule = config.urlField ? codesRule() : null;
   return `<div class="fr-mt-6w">
-    <p class="bld-h">Liens et QR codes par code (stage, session…)</p>
-    <p class="fr-text--sm">Chaque lien ouvre le formulaire avec le code déjà rempli, ce qui déclenche le préremplissage.
-      Imprimez les QR codes pour les affiches et envoyez les liens par courriel aux personnes sans téléphone.</p>
+    <p class="bld-h">Un lien et un QR code par formation</p>
+    <p class="fr-text--sm">Le lien public ci-dessus ouvre le formulaire « vierge » : l’usager choisit lui-même sa formation.
+      Ici, chaque formation reçoit <strong>son propre lien</strong>, qui ouvre le formulaire avec la formation déjà choisie, donc déjà adapté.
+      Exemple : imprimez le QR code de NAS0EA0001 et affichez-le dans la salle, ou ajoutez le lien dans le courriel envoyé aux participants.</p>
     <div class="bld-row3">
-      ${selectCtl('Champ rempli par le lien', 'urlField', [['', '— aucun —'], ...inputs.map(f => [f.id, resolve(f.label)])], config.urlField)}
-      ${config.urlField ? inputCtl('Nom du paramètre dans l’adresse', 'urlParam', config.urlParam, { placeholder: 'code', attrs: ' spellcheck="false"' }) : ''}
+      ${selectCtl('Champ qui reçoit le code de la formation', 'urlField', [['', '— aucun —'], ...inputs.map(f => [f.id, resolve(f.label)])], config.urlField)}
+      ${config.urlField ? inputCtl('Nom du paramètre dans l’adresse', 'urlParam', config.urlParam, { placeholder: 'code', attrs: ' spellcheck="false"', hint: 'Laissez « code » sauf besoin particulier.' }) : ''}
       ${rule ? selectCtl(`Colonne d’intitulé (table ${rule.tableId})`, 'urlLabelColId', [['', '— aucune —'], ...colsOf(rule.tableId).map(c => [c.colId, c.label])], config.urlLabelColId) : ''}
     </div>
     ${config.urlField ? checkCtl('Verrouiller ce champ quand il vient du lien', 'urlLock', config.urlLock, 'L’usager voit le code mais ne peut pas le modifier.') : ''}
@@ -1722,12 +1746,12 @@ function qrPngDataUrl(text, cell = 10) {
 }
 function updateQR() {
   const pl = $('#public-link');
-  if (pl) { const l = publicLink(); pl.textContent = l || 'Renseignez l’identifiant et l’adresse de la page publique.'; }
+  if (pl) { const l = publicLink(); pl.textContent = l || 'Renseignez l’identifiant, l’adresse du webhook n8n et l’adresse de la page publique.'; }
   const box = $('#qr-box');
   if (!box) return;
   const url = qrTarget();
   if (typeof qrcode === 'undefined') { box.innerHTML = '<div class="bld-qr__empty">Bibliothèque QR code non chargée.</div>'; return; }
-  if (!url) { box.innerHTML = '<div class="bld-qr__empty">Renseignez l’adresse cible pour générer le QR code.</div>'; return; }
+  if (!url) { box.innerHTML = '<div class="bld-qr__empty">Le QR code apparaîtra quand l’identifiant, l’adresse n8n et l’adresse de la page publique seront renseignés.</div>'; return; }
   try {
     box.innerHTML = `<img src="${qrPngDataUrl(url)}" alt="QR code vers ${esc(url)}">`;
   } catch (e) {
@@ -1883,7 +1907,7 @@ function fieldFromColumn(c) {
   let type = 'text';
   if (c.type === 'Numeric' || c.type === 'Int') type = 'number';
   else if (c.type === 'Date' || c.type.startsWith('DateTime')) type = 'date';
-  else if (c.type === 'Bool') type = 'checkbox';
+  else if (c.type === 'Bool') type = 'yesno';
   else if (c.type === 'Choice') type = 'select';
   else if (c.type === 'ChoiceList') type = 'checkboxes';
   else if (/mail|courriel/i.test(blob)) type = 'email';
@@ -1894,8 +1918,59 @@ function fieldFromColumn(c) {
   if (c.choices && c.choices.length) f.options = c.choices.slice();
   return f;
 }
+/* La configuration est enregistrée dans la table « Formulaires » (colonne Brouillon), et non dans les
+   options du widget : Grist n’affiche donc plus sa barre « Enregistrer / Annuler ». « Publier » copie
+   le brouillon dans la colonne Config, lue par n8n. */
+const FORMS_COLS = [['Slug', 'Text'], ['Titre', 'Text'], ['Table', 'Text'], ['Brouillon', 'Text'], ['Config', 'Text'],
+  ['Publie', 'Bool'], ['Mis_a_jour', 'DateTime:Europe/Paris']];
+let formRowId = null;
+async function ensureFormsTable() {
+  if (!schema[FORMS_TABLE]) {
+    await grist.docApi.applyUserActions([['AddTable', FORMS_TABLE, FORMS_COLS.map(([id, type]) => ({ id, type }))]]);
+    await loadSchema();
+    return;
+  }
+  const have = new Set(colsOf(FORMS_TABLE).map(c => c.colId));
+  const missing = FORMS_COLS.filter(([id]) => !have.has(id));
+  if (missing.length) {
+    await grist.docApi.applyUserActions(missing.map(([id, type]) => ['AddColumn', FORMS_TABLE, id, { type }]));
+    await loadSchema();
+  }
+}
+async function readForms() {
+  if (!schema[FORMS_TABLE]) return null;
+  return grist.docApi.fetchTable(FORMS_TABLE);
+}
+async function findFormRow() {
+  const d = await readForms();
+  if (!d) return null;
+  let i = formRowId ? (d.id || []).indexOf(formRowId) : -1;
+  if (i < 0) i = (d.Table || []).findIndex(t => t === targetTableId);
+  if (i < 0) return null;
+  return { id: d.id[i], draft: (d.Brouillon || [])[i] || '', pub: (d.Config || [])[i] || '', all: d };
+}
+async function loadFromTable() {
+  try {
+    const row = await findFormRow();
+    if (!row) return false;
+    formRowId = row.id;
+    const src = row.draft || row.pub;
+    if (src) config = normalizeConfig(JSON.parse(src));
+    savedJson = JSON.stringify(config);
+    return true;
+  } catch (e) { console.warn('Configuration illisible dans la table Formulaires', e); return false; }
+}
 async function saveOptions() {
-  if (inGrist) await grist.setOption('form', JSON.parse(JSON.stringify(config)));
+  if (!inGrist) { savedJson = JSON.stringify(config); return; }
+  await ensureFormsTable();
+  if (!formRowId) { const r = await findFormRow(); formRowId = r ? r.id : null; }
+  config.targetTableId = targetTableId;
+  const fields = { Brouillon: JSON.stringify(config), Titre: formTitle(), Table: targetTableId || '', Slug: config.slug || '', Mis_a_jour: Date.now() / 1000 };
+  if (formRowId) await grist.docApi.applyUserActions([['UpdateRecord', FORMS_TABLE, formRowId, fields]]);
+  else {
+    const res = await grist.docApi.applyUserActions([['AddRecord', FORMS_TABLE, null, Object.assign({ Publie: false }, fields)]]);
+    formRowId = res && res.retValues ? res.retValues[0] : null;
+  }
   savedJson = JSON.stringify(config);
 }
 
@@ -2008,21 +2083,17 @@ const actions = {
     config.slug = slugify(config.slug || formTitle());
     if (!config.slug) { notify('Renseignez un identifiant de formulaire.', 'warning'); return; }
     if (!targetTableId) { notify('Table de destination introuvable.', 'error'); return; }
+    if (!config.apiUrl && !DEFAULT_API) notify('Pensez à renseigner l’adresse du webhook n8n : sans elle, le lien public ne fonctionne pas.', 'warning');
     config.targetTableId = targetTableId;
     try {
-      if (!schema[FORMS_TABLE]) {
-        await grist.docApi.applyUserActions([['AddTable', FORMS_TABLE, [
-          { id: 'Slug', type: 'Text' }, { id: 'Titre', type: 'Text' }, { id: 'Config', type: 'Text' },
-          { id: 'Publie', type: 'Bool' }, { id: 'Mis_a_jour', type: 'DateTime:Europe/Paris' }]]]);
-        await loadSchema();
-      }
-      const d = await grist.docApi.fetchTable(FORMS_TABLE);
-      const idx = (d.Slug || []).findIndex(s => s === config.slug);
-      const fields = { Titre: formTitle(), Config: JSON.stringify(config), Mis_a_jour: Date.now() / 1000 };
-      if (idx >= 0) await grist.docApi.applyUserActions([['UpdateRecord', FORMS_TABLE, d.id[idx], fields]]);
-      else await grist.docApi.applyUserActions([['AddRecord', FORMS_TABLE, null, Object.assign({ Slug: config.slug, Publie: true }, fields)]]);
       await saveOptions();
-      notify(idx >= 0 ? 'Formulaire mis à jour.' : 'Formulaire publié.', 'success');
+      const row = await findFormRow();
+      const d = row.all;
+      const twin = (d.Slug || []).findIndex((sl, k) => sl === config.slug && d.id[k] !== row.id);
+      if (twin >= 0) { notify(`L’identifiant « ${config.slug} » est déjà utilisé par un autre formulaire : choisissez-en un autre.`, 'error'); renderBuilder(); return; }
+      const first = !row.pub;
+      await grist.docApi.applyUserActions([['UpdateRecord', FORMS_TABLE, row.id, Object.assign({ Config: JSON.stringify(config) }, first ? { Publie: true } : {})]]);
+      notify(first ? 'Formulaire publié.' : 'Formulaire mis à jour.', 'success');
     } catch (e) {
       console.error(e);
       notify('Publication impossible : ' + (e.message || e), 'error');
@@ -2165,13 +2236,13 @@ function demoConfig() {
   const objectifs = F('contenu', 'Objectifs de la formation', { style: 'encadre' });
   const s2 = F('section', 'Votre avis');
   const satisf = F('radio', 'Globalement, êtes-vous satisfait de cette formation ?', { required: true, colId: 'Satisfaction',
-    options: ['Très satisfait', 'Satisfait', 'Peu satisfait', 'Pas satisfait'] });
+    options: ['Très satisfait', 'Satisfait', 'Peu satisfait', 'Pas satisfait'], layout: '2' });
   const obj = F('radio', 'Les objectifs présentés ci-dessus ont-ils été atteints ?', { required: true, colId: 'Objectifs_atteints',
     options: ['Oui', 'En partie', 'Non'] });
   const forts = F('textarea', 'Qu’avez-vous le plus apprécié ?', { colId: 'Points_forts' });
   const amelio = F('textarea', 'Que faudrait-il améliorer ?', { colId: 'Ameliorations', required: true,
     condition: { fieldId: satisf.id, op: 'neq', value: 'Très satisfait' } });
-  const reco = F('radio', 'Recommanderiez-vous cette formation à un collègue ?', { required: true, colId: 'Recommande', options: ['Oui', 'Non'] });
+  const reco = F('yesno', 'Recommanderiez-vous cette formation à un collègue ?', { required: true, colId: 'Recommande' });
   const email = F('email', 'Adresse électronique (facultatif, pour être recontacté)', { colId: 'Email', regexPreset: 'emailAgri' });
   const rgpd = F('contenu', '', { style: 'auto', contentKey: 'rgpd' });
   return normalizeConfig({
@@ -2195,7 +2266,7 @@ async function bootRemote() {
   remote = true;
   app.innerHTML = '<main class="dn-page"><p class="fr-text--lg">Chargement du formulaire…</p></main>';
   try {
-    if (!PUBLIC_API) throw new Error('L’adresse du service est manquante.');
+    if (!PUBLIC_API) throw new Error('Ce lien est incomplet : il ne contient pas l’adresse du service d’enregistrement. Demandez un nouveau lien ou QR code à l’organisateur.');
     const r = await callApi(PUBLIC_API, { action: 'config', f: PUBLIC_SLUG });
     if (!r || r.ok === false || !r.config) throw new Error((r && r.error) || 'Ce formulaire n’existe pas ou n’est plus ouvert.');
     config = normalizeConfig(r.config);
@@ -2211,16 +2282,19 @@ async function bootRemote() {
 
 if (inGrist) {
   grist.ready({ requiredAccess: 'full', allowSelectBy: false, onEditOptions: () => openBuilder() });
-  grist.onOptions(async opts => {
-    const c = opts && opts.form;
-    const incoming = c ? normalizeConfig(c) : defaultConfig();
-    savedJson = JSON.stringify(incoming);
-    if (mode === 'builder') return;      // ne pas écraser une édition en cours
-    config = incoming;
-    if (mode === 'form') { resetFormState(); await loadContents(); renderForm(); }
-  });
-  loadSchema();
-  renderForm();
+  // Anciennes versions : configuration dans les options du widget (reprise automatique)
+  const legacy = new Promise(res => { grist.onOptions(o => res(o && o.form ? o.form : null)); setTimeout(() => res(null), 2000); });
+  app.innerHTML = '<main class="dn-page"><p class="fr-text--lg">Chargement du formulaire…</p></main>';
+  (async () => {
+    await loadSchema();
+    const found = await loadFromTable();
+    if (!found) {
+      const old = await legacy;
+      if (old) { config = normalizeConfig(old); savedJson = '{}'; }   // à enregistrer pour migrer
+    }
+    await loadContents();
+    if (mode === 'form') renderForm();
+  })();
 } else if (PUBLIC_SLUG) {
   bootRemote();
 } else {
