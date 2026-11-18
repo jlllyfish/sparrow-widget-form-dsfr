@@ -10,7 +10,7 @@
           "allowedOrigins": "*"
         }
       },
-      "id": "a0ded0ca-9f97-4ed0-a419-9e39f2866792",
+      "id": "874b6b23-ce3c-44f8-a591-4cfb7a8c39fe",
       "name": "Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
@@ -18,13 +18,13 @@
         0,
         300
       ],
-      "webhookId": "02b4123c-9ac8-4be2-8441-c3193a5299af"
+      "webhookId": "1e89be18-4a10-43b4-b58d-d7cc47cbfb89"
     },
     {
       "parameters": {
         "jsCode": "// ============ À ADAPTER ============\nconst GRIST_URL = 'https://grist.numerique.gouv.fr';   // sans / final\nconst DOC_ID = 'IDENTIFIANT_DU_DOCUMENT';               // document contenant Formulaires, Contenus et les réponses\nconst FORMS_TABLE = 'Formulaires';\n// ===================================\nconst body = $input.first().json.body || {};\nreturn [{ json: { gristUrl: GRIST_URL, docId: DOC_ID, formsTable: FORMS_TABLE, req: body } }];\n"
       },
-      "id": "2ebddb6d-c172-4b2e-90de-6576806f3859",
+      "id": "04101ecc-694b-4b72-8c86-afa5e037672a",
       "name": "Paramètres",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -50,7 +50,7 @@
           ]
         }
       },
-      "id": "697f7038-f041-4c6d-a522-4c6a4589ec15",
+      "id": "5f7f13ed-5ddb-4519-b0d4-de95f67b9e96",
       "name": "Lire le formulaire",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -69,9 +69,9 @@
     },
     {
       "parameters": {
-        "jsCode": "const p = $('Paramètres').first().json;\nconst res = $input.first().json;\nconst req = p.req || {};\nconst rec = (res.records || [])[0];\nlet config = null;\ntry { config = rec && rec.fields.Publie ? JSON.parse(rec.fields.Config) : null; } catch (e) { config = null; }\nif (!config) return [{ json: { action: 'error', ok: false, error: 'Ce formulaire n’existe pas ou n’est plus ouvert.' } }];\nif (!['config', 'lookup', 'submit'].includes(req.action)) return [{ json: { action: 'error', ok: false, error: 'Requête invalide.' } }];\n// Destination des réponses : autre document si configuré, sinon le document principal\nconst DOC = /^[A-Za-z0-9_-]+$/, ID = /^[A-Za-z_][A-Za-z0-9_]*$/;\nconst otherDoc = config.responsesDocId && DOC.test(config.responsesDocId);\nconst respDocId = otherDoc ? config.responsesDocId : p.docId;\nconst respTableId = otherDoc && ID.test(config.responsesTableId || '') ? config.responsesTableId : config.targetTableId;\nreturn [{ json: { action: req.action, config, req, gristUrl: p.gristUrl, docId: p.docId, respDocId, respTableId } }];\n"
+        "jsCode": "const p = $('Paramètres').first().json;\nconst res = $input.first().json;\nconst req = p.req || {};\nconst rec = (res.records || [])[0];\nlet config = null;\ntry { config = rec && rec.fields.Publie ? JSON.parse(rec.fields.Config) : null; } catch (e) { config = null; }\nif (!config) return [{ json: { action: 'error', ok: false, error: 'Ce formulaire n’existe pas ou n’est plus ouvert.' } }];\nif (!['config', 'lookup', 'submit', 'options'].includes(req.action)) return [{ json: { action: 'error', ok: false, error: 'Requête invalide.' } }];\n// Destination des réponses : autre document si configuré, sinon le document principal\nconst DOC = /^[A-Za-z0-9_-]+$/, ID = /^[A-Za-z_][A-Za-z0-9_]*$/;\nconst otherDoc = config.responsesDocId && DOC.test(config.responsesDocId);\nconst respDocId = otherDoc ? config.responsesDocId : p.docId;\nconst respTableId = otherDoc && ID.test(config.responsesTableId || '') ? config.responsesTableId : config.targetTableId;\nreturn [{ json: { action: req.action, config, req, gristUrl: p.gristUrl, docId: p.docId, respDocId, respTableId } }];\n"
       },
-      "id": "2315558c-39ef-42d7-aa6e-a9878e0f42b2",
+      "id": "889b3f3d-515d-421d-83ab-f648b0e1ff88",
       "name": "Préparer",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -83,10 +83,10 @@
     {
       "parameters": {
         "mode": "expression",
-        "numberOutputs": 4,
-        "output": "={{ ({ config: 0, lookup: 1, submit: 2 })[$json.action] ?? 3 }}"
+        "numberOutputs": 5,
+        "output": "={{ ({ config: 0, lookup: 1, submit: 2, options: 3 })[$json.action] ?? 4 }}"
       },
-      "id": "8bedf44f-de6a-427c-a057-2ebe8eb95a1f",
+      "id": "ea026677-20e6-4cb5-8d45-1e980cf6291c",
       "name": "Aiguillage",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3,
@@ -100,7 +100,7 @@
         "respondWith": "firstIncomingItem",
         "options": {}
       },
-      "id": "2276bc6b-726f-4d82-86a3-33bb9ed2ee01",
+      "id": "cdd3f9e9-2270-4db0-8821-6b710231595b",
       "name": "Répondre",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
@@ -117,7 +117,7 @@
         "genericAuthType": "httpHeaderAuth",
         "options": {}
       },
-      "id": "26251be9-fe4d-47cd-bf4a-49d02f16a8a7",
+      "id": "495218cc-d6f6-4653-ae3f-c575078d1d23",
       "name": "Lire les contenus",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -136,9 +136,9 @@
     },
     {
       "parameters": {
-        "jsCode": "// Renvoie la configuration sans les détails internes (colonnes, tables, documents)\nconst prep = $('Préparer').first().json;\nconst res = $input.first().json;\nconst cs = prep.config.contentSource || {};\n// Seules les entrées utilisées par ce formulaire sont envoyées\nconst cfg = prep.config;\nconst used = new Set([...JSON.stringify(cfg).matchAll(/\\{\\{\\s*([\\w.\\-]+)\\s*\\}\\}/g)].map(m => m[1]));\n['titleKey', 'subtitleKey', 'descriptionKey'].forEach(k => { if (cfg[k]) used.add(cfg[k]); });\n(cfg.fields || []).forEach(f => { if (f.contentKey) used.add(f.contentKey); });\nconst val = (r, c) => (c && r.fields[c] != null) ? String(r.fields[c]) : '';\nconst contents = {};\n(res.records || []).forEach(r => {\n  const k = String(r.fields[cs.keyColId] ?? '').trim();\n  if (k && used.has(k)) contents[k] = { texte: val(r, cs.textColId), titre: val(r, cs.titleColId), composant: val(r, cs.compColId) };\n});\nconst c = JSON.parse(JSON.stringify(prep.config));\n(c.fields || []).forEach(f => { delete f.colId; });\nc.lookups = (c.lookups || []).map(l => ({ id: l.id, triggerFieldId: l.triggerFieldId, lock: !!l.lock, mustMatch: !!l.mustMatch }));\n['contentSource', 'targetTableId', 'apiUrl', 'publicUrl', 'qrUrl', 'qrMode', 'responsesDocId', 'responsesTableId', 'urlLabelColId', 'urlCodes'].forEach(k => delete c[k]);\nreturn [{ json: { ok: true, config: c, contents } }];\n"
+        "jsCode": "// Renvoie la configuration sans les détails internes (colonnes, tables, documents)\nconst prep = $('Préparer').first().json;\nconst res = $input.first().json;\nconst cs = prep.config.contentSource || {};\n// Seules les entrées utilisées par ce formulaire sont envoyées\nconst cfg = prep.config;\nconst used = new Set([...JSON.stringify(cfg).matchAll(/\\{\\{\\s*([\\w.\\-]+)\\s*\\}\\}/g)].map(m => m[1]));\n['titleKey', 'subtitleKey', 'descriptionKey'].forEach(k => { if (cfg[k]) used.add(cfg[k]); });\n(cfg.fields || []).forEach(f => { if (f.contentKey) used.add(f.contentKey); });\nconst val = (r, c) => (c && r.fields[c] != null) ? String(r.fields[c]) : '';\nconst contents = {};\n(res.records || []).forEach(r => {\n  const k = String(r.fields[cs.keyColId] ?? '').trim();\n  if (k && used.has(k)) contents[k] = { texte: val(r, cs.textColId), titre: val(r, cs.titleColId), composant: val(r, cs.compColId) };\n});\nconst c = JSON.parse(JSON.stringify(prep.config));\n(c.fields || []).forEach(f => { delete f.colId; });\nc.lookups = (c.lookups || []).map(l => ({ id: l.id, triggerFieldId: l.triggerFieldId, lock: !!l.lock,\n  mustMatch: !!(l.mustMatch || l.openColId || l.formColId), mappings: (l.mappings || []).map(m => ({ fieldId: m.fieldId })) }));\n['contentSource', 'targetTableId', 'apiUrl', 'publicUrl', 'qrUrl', 'qrMode', 'responsesDocId', 'responsesTableId', 'urlLabelColId', 'urlCodes'].forEach(k => delete c[k]);\nreturn [{ json: { ok: true, config: c, contents } }];\n"
       },
-      "id": "e7b2a20d-4e08-486d-927f-94ccdfba4ce2",
+      "id": "9f47c31c-a090-4c1c-8420-470853a3f0e7",
       "name": "Config publique",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -149,9 +149,9 @@
     },
     {
       "parameters": {
-        "jsCode": "// ⚠️ Bloc généré à partir du widget (index.html) : même logique de validation que dans le navigateur.\nconst CHOICE_TYPES = ['select', 'radio', 'checkboxes'];\nconst REGEX_TYPES = ['text', 'textarea', 'email', 'tel'];\nconst REGEX_PRESETS = {\n  none:      { label: 'Aucun contrôle', re: '', msg: '' },\n  email:     { label: 'Adresse électronique', re: '^[A-Za-z0-9._%+\\\\-]+@[A-Za-z0-9\\\\-]+(\\\\.[A-Za-z0-9\\\\-]+)*\\\\.[A-Za-z]{2,}$',\n               msg: 'Saisissez une adresse électronique valide, par exemple prenom.nom@agriculture.gouv.fr' },\n  emailGouv: { label: 'Adresse électronique en .gouv.fr', re: '^[A-Za-z0-9._%+\\\\-]+@([A-Za-z0-9\\\\-]+\\\\.)*gouv\\\\.fr$',\n               msg: 'Saisissez une adresse se terminant par .gouv.fr' },\n  emailAgri: { label: 'Adresse agriculture.gouv.fr ou educagri.fr', re: '^[A-Za-z0-9._%+\\\\-]+@(agriculture\\\\.gouv\\\\.fr|educagri\\\\.fr)$',\n               msg: 'Saisissez une adresse en @agriculture.gouv.fr ou @educagri.fr' },\n  telFR:     { label: 'Téléphone français', re: '^(?:(?:\\\\+|00)33\\\\s?|0)[1-9](?:[\\\\s.\\\\-]?\\\\d{2}){4}$',\n               msg: 'Saisissez un numéro valide, par exemple 06 12 34 56 78' },\n  cp:        { label: 'Code postal', re: '^\\\\d{5}$', msg: 'Le code postal comporte 5 chiffres' },\n  siret:     { label: 'SIRET (14 chiffres)', re: '^\\\\d{3}\\\\s?\\\\d{3}\\\\s?\\\\d{3}\\\\s?\\\\d{5}$', msg: 'Le SIRET comporte 14 chiffres' },\n  uai:       { label: 'Code UAI d’établissement', re: '^\\\\d{7}[A-Za-z]$', msg: 'Le code UAI comporte 7 chiffres suivis d’une lettre' },\n  custom:    { label: 'Expression personnalisée…', re: '', msg: '' }\n};\nfunction isEmpty(v) { return v == null || v === '' || v === false || (Array.isArray(v) && !v.length); }\nfunction norm(v) { return String(v == null ? '' : v).trim().toLowerCase(); }\nfunction keyNorm(v) { return String(v == null ? '' : v).toLowerCase().replace(/\\s+/g, ''); }\nfunction isInput(f) { return !!f && f.type !== 'section' && f.type !== 'contenu' && f.type !== 'explication'; }\nfunction testCond(c, values) {\n  const op = c.op || 'eq';\n  const v = values[c.fieldId];\n  if (op === 'empty') return isEmpty(v);\n  if (op === 'notEmpty') return !isEmpty(v);\n  if (op === 'gt' || op === 'lt') {\n    if (isEmpty(v)) return false;\n    const a = Number(String(v).replace(',', '.')), b = Number(String(c.value).replace(',', '.'));\n    if (isNaN(a) || isNaN(b)) return false;\n    return op === 'gt' ? a > b : a < b;\n  }\n  const target = norm(c.value);\n  const arr = Array.isArray(v) ? v.map(norm) : typeof v === 'boolean' ? [v ? 'oui' : 'non'] : [norm(v)];\n  if (op === 'eq') return arr.includes(target);\n  if (op === 'neq') return !arr.includes(target);\n  if (op === 'contains') return arr.some(x => x.includes(target));\n  return true;\n}\nfunction computeVisibilityFrom(fields, values) {\n  const vis = {};\n  let sectionVisible = true;\n  for (const f of fields) {\n    let own = true;\n    if (f.condition && f.condition.fieldId) own = vis[f.condition.fieldId] !== false && testCond(f.condition, values);\n    if (f.type === 'section') { sectionVisible = own; vis[f.id] = own; }\n    else vis[f.id] = own && sectionVisible;\n  }\n  return vis;\n}\nfunction getRule(f) {\n  const p = f.regexPreset || 'none';\n  if (p === 'custom') return f.regex ? { re: f.regex, msg: f.regexMessage || 'Le format saisi n’est pas valide.' } : null;\n  if (p !== 'none' && REGEX_PRESETS[p]) return { re: REGEX_PRESETS[p].re, msg: f.regexMessage || REGEX_PRESETS[p].msg };\n  if (f.type === 'email') return { re: REGEX_PRESETS.email.re, msg: f.regexMessage || REGEX_PRESETS.email.msg };\n  return null;\n}\nfunction compileRule(rule) {\n  if (!rule || !rule.re) return null;\n  let src = rule.re, flags = '';\n  const m = /^\\/(.*)\\/([gimsuy]*)$/.exec(src);\n  if (m) { src = m[1]; flags = m[2].replace('g', ''); }\n  try { return new RegExp(src, flags); } catch (e) { return null; }\n}\nfunction validateField(f, v) {\n  if (f.required && isEmpty(v)) {\n    if (f.type === 'checkbox') return 'Vous devez cocher cette case.';\n    if (f.type === 'checkboxes') return 'Cochez au moins une option.';\n    return CHOICE_TYPES.includes(f.type) ? 'Sélectionnez une option.' : 'Ce champ est obligatoire.';\n  }\n  if (isEmpty(v)) return '';\n  if (f.type === 'number' && isNaN(Number(String(v).replace(',', '.').replace(/\\s/g, '')))) return 'Saisissez un nombre.';\n  if (f.type === 'date' && !/^\\d{4}-\\d{2}-\\d{2}$/.test(String(v))) return 'Saisissez une date valide.';\n  if (typeof v === 'string') {\n    const rule = getRule(f);\n    const rx = compileRule(rule);\n    if (rx && !rx.test(v)) return rule.msg;\n  }\n  return '';\n}\nfunction toGristTyped(f, v, t) {\n  t = t || '';\n  if (t === 'Bool') return typeof v === 'boolean' ? v : /^(oui|true|1|yes|vrai)$/i.test(String(v));\n  if (t === 'Numeric' || t === 'Int') {\n    if (v === '' || v == null) return null;\n    const n = Number(String(v).replace(',', '.').replace(/\\s/g, ''));\n    return isNaN(n) ? String(v) : (t === 'Int' ? Math.round(n) : n);\n  }\n  if (t === 'Date' || t.indexOf('DateTime') === 0) {\n    const m = /^(\\d{4})-(\\d{2})-(\\d{2})$/.exec(String(v));\n    return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) / 1000 : (v || null);\n  }\n  if (t === 'ChoiceList') {\n    const arr = Array.isArray(v) ? v : (isEmpty(v) ? [] : [String(v)]);\n    return arr.length ? ['L'].concat(arr) : null;\n  }\n  if (!t) {\n    if (f.type === 'checkbox') return !!v;\n    if (f.type === 'number') return v === '' ? null : Number(String(v).replace(',', '.'));\n  }\n  if (typeof v === 'boolean') return v ? 'Oui' : 'Non';\n  if (Array.isArray(v)) return v.join(', ');\n  return v;\n}\n\nconst ID = /^[A-Za-z_][A-Za-z0-9_]*$/;\nconst DOC = /^[A-Za-z0-9_-]+$/;\nfunction keySql(c) { return `lower(replace(replace(replace(CAST(\"${c}\" AS TEXT), ' ', ''), char(9), ''), char(160), ''))`; }\n// Condition SQL d'une règle : code + rattachement au formulaire (+ ouverture si demandé)\nfunction ruleWhere(rule, value, slug, requireOpen) {\n  const conds = [`${keySql(rule.keyColId)} = ?`], args = [keyNorm(value)];\n  if (rule.formColId && ID.test(rule.formColId) && slug) {\n    if (rule.formColRef && ID.test(rule.formColRef)) conds.push(`(SELECT \"Slug\" FROM \"${rule.formColRef}\" WHERE id = \"${rule.formColId}\") = ?`);\n    else conds.push(`CAST(\"${rule.formColId}\" AS TEXT) = ?`);\n    args.push(slug);\n  }\n  if (requireOpen && rule.openColId && ID.test(rule.openColId)) conds.push(`\"${rule.openColId}\" = 1`);\n  return { where: conds.join(' AND '), args };\n}\n\nconst { config, req, docId, gristUrl } = $input.first().json;\nconst rule = (config.lookups || []).find(l => l.id === req.rule);\nconst value = keyNorm(req.value);\nconst none = { gristUrl, docId, sql: 'SELECT 1 AS ok WHERE 0 = 1', args: [], maps: [] };\nif (!rule || !value || !ID.test(rule.tableId || '') || !ID.test(rule.keyColId || '')) return [{ json: none }];\nconst targetDoc = (rule.external && rule.docId) ? rule.docId : docId;\nif (!DOC.test(targetDoc)) return [{ json: none }];\nconst maps = (rule.mappings || []).filter(m => m.fieldId && ID.test(m.colId || ''));\nconst cols = [...new Set(maps.map(m => m.colId))];\nconst open = rule.openColId && ID.test(rule.openColId) ? [`\"${rule.openColId}\" AS \"__open\"`] : [];\nconst select = [`\"${rule.keyColId}\" AS \"__key\"`].concat(open, cols.map(c => `\"${c}\"`)).join(', ');\nconst w = ruleWhere(rule, value, String(req.f || ''), false);\nreturn [{ json: {\n  gristUrl, docId: targetDoc, maps, args: w.args,\n  sql: `SELECT ${select} FROM \"${rule.tableId}\" WHERE ${w.where} LIMIT 1`\n} }];\n"
+        "jsCode": "// ⚠️ Bloc généré à partir du widget (index.html) : même logique de validation que dans le navigateur.\nconst CHOICE_TYPES = ['select', 'radio', 'checkboxes'];\nconst REGEX_TYPES = ['text', 'textarea', 'email', 'tel'];\nconst REGEX_PRESETS = {\n  none:      { label: 'Aucun contrôle', re: '', msg: '' },\n  email:     { label: 'Adresse électronique', re: '^[A-Za-z0-9._%+\\\\-]+@[A-Za-z0-9\\\\-]+(\\\\.[A-Za-z0-9\\\\-]+)*\\\\.[A-Za-z]{2,}$',\n               msg: 'Saisissez une adresse électronique valide, par exemple prenom.nom@agriculture.gouv.fr' },\n  emailGouv: { label: 'Adresse électronique en .gouv.fr', re: '^[A-Za-z0-9._%+\\\\-]+@([A-Za-z0-9\\\\-]+\\\\.)*gouv\\\\.fr$',\n               msg: 'Saisissez une adresse se terminant par .gouv.fr' },\n  emailAgri: { label: 'Adresse agriculture.gouv.fr ou educagri.fr', re: '^[A-Za-z0-9._%+\\\\-]+@(agriculture\\\\.gouv\\\\.fr|educagri\\\\.fr)$',\n               msg: 'Saisissez une adresse en @agriculture.gouv.fr ou @educagri.fr' },\n  telFR:     { label: 'Téléphone français', re: '^(?:(?:\\\\+|00)33\\\\s?|0)[1-9](?:[\\\\s.\\\\-]?\\\\d{2}){4}$',\n               msg: 'Saisissez un numéro valide, par exemple 06 12 34 56 78' },\n  cp:        { label: 'Code postal', re: '^\\\\d{5}$', msg: 'Le code postal comporte 5 chiffres' },\n  siret:     { label: 'SIRET (14 chiffres)', re: '^\\\\d{3}\\\\s?\\\\d{3}\\\\s?\\\\d{3}\\\\s?\\\\d{5}$', msg: 'Le SIRET comporte 14 chiffres' },\n  uai:       { label: 'Code UAI d’établissement', re: '^\\\\d{7}[A-Za-z]$', msg: 'Le code UAI comporte 7 chiffres suivis d’une lettre' },\n  custom:    { label: 'Expression personnalisée…', re: '', msg: '' }\n};\nfunction isEmpty(v) { return v == null || v === '' || v === false || (Array.isArray(v) && !v.length); }\nfunction norm(v) { return String(v == null ? '' : v).trim().toLowerCase(); }\nfunction keyNorm(v) { return String(v == null ? '' : v).toLowerCase().replace(/\\s+/g, ''); }\nfunction isInput(f) { return !!f && f.type !== 'section' && f.type !== 'contenu' && f.type !== 'explication'; }\nfunction testCond(c, values) {\n  const op = c.op || 'eq';\n  const v = values[c.fieldId];\n  if (op === 'empty') return isEmpty(v);\n  if (op === 'notEmpty') return !isEmpty(v);\n  if (op === 'gt' || op === 'lt') {\n    if (isEmpty(v)) return false;\n    const a = Number(String(v).replace(',', '.')), b = Number(String(c.value).replace(',', '.'));\n    if (isNaN(a) || isNaN(b)) return false;\n    return op === 'gt' ? a > b : a < b;\n  }\n  const target = norm(c.value);\n  const arr = Array.isArray(v) ? v.map(norm) : typeof v === 'boolean' ? [v ? 'oui' : 'non'] : [norm(v)];\n  if (op === 'eq') return arr.includes(target);\n  if (op === 'neq') return !arr.includes(target);\n  if (op === 'contains') return arr.some(x => x.includes(target));\n  return true;\n}\nfunction computeVisibilityFrom(fields, values) {\n  const vis = {};\n  let sectionVisible = true;\n  for (const f of fields) {\n    let own = true;\n    if (f.condition && f.condition.fieldId) own = vis[f.condition.fieldId] !== false && testCond(f.condition, values);\n    if (f.type === 'section') { sectionVisible = own; vis[f.id] = own; }\n    else vis[f.id] = own && sectionVisible;\n  }\n  return vis;\n}\nfunction getRule(f) {\n  const p = f.regexPreset || 'none';\n  if (p === 'custom') return f.regex ? { re: f.regex, msg: f.regexMessage || 'Le format saisi n’est pas valide.' } : null;\n  if (p !== 'none' && REGEX_PRESETS[p]) return { re: REGEX_PRESETS[p].re, msg: f.regexMessage || REGEX_PRESETS[p].msg };\n  if (f.type === 'email') return { re: REGEX_PRESETS.email.re, msg: f.regexMessage || REGEX_PRESETS.email.msg };\n  return null;\n}\nfunction compileRule(rule) {\n  if (!rule || !rule.re) return null;\n  let src = rule.re, flags = '';\n  const m = /^\\/(.*)\\/([gimsuy]*)$/.exec(src);\n  if (m) { src = m[1]; flags = m[2].replace('g', ''); }\n  try { return new RegExp(src, flags); } catch (e) { return null; }\n}\nfunction validateField(f, v) {\n  if (f.required && isEmpty(v)) {\n    if (f.type === 'checkbox') return 'Vous devez cocher cette case.';\n    if (f.type === 'checkboxes') return 'Cochez au moins une option.';\n    return CHOICE_TYPES.includes(f.type) ? 'Sélectionnez une option.' : 'Ce champ est obligatoire.';\n  }\n  if (isEmpty(v)) return '';\n  if (f.type === 'number' && isNaN(Number(String(v).replace(',', '.').replace(/\\s/g, '')))) return 'Saisissez un nombre.';\n  if (f.type === 'date' && !/^\\d{4}-\\d{2}-\\d{2}$/.test(String(v))) return 'Saisissez une date valide.';\n  if (typeof v === 'string') {\n    const rule = getRule(f);\n    const rx = compileRule(rule);\n    if (rx && !rx.test(v)) return rule.msg;\n  }\n  return '';\n}\nfunction toGristTyped(f, v, t) {\n  t = t || '';\n  if (t === 'Bool') return typeof v === 'boolean' ? v : /^(oui|true|1|yes|vrai)$/i.test(String(v));\n  if (t === 'Numeric' || t === 'Int') {\n    if (v === '' || v == null) return null;\n    const n = Number(String(v).replace(',', '.').replace(/\\s/g, ''));\n    return isNaN(n) ? String(v) : (t === 'Int' ? Math.round(n) : n);\n  }\n  if (t === 'Date' || t.indexOf('DateTime') === 0) {\n    const m = /^(\\d{4})-(\\d{2})-(\\d{2})$/.exec(String(v));\n    return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) / 1000 : (v || null);\n  }\n  if (t === 'ChoiceList') {\n    const arr = Array.isArray(v) ? v : (isEmpty(v) ? [] : [String(v)]);\n    return arr.length ? ['L'].concat(arr) : null;\n  }\n  if (!t) {\n    if (f.type === 'checkbox') return !!v;\n    if (f.type === 'number') return v === '' ? null : Number(String(v).replace(',', '.'));\n  }\n  if (typeof v === 'boolean') return v ? 'Oui' : 'Non';\n  if (Array.isArray(v)) return v.join(', ');\n  return v;\n}\n\nconst ID = /^[A-Za-z_][A-Za-z0-9_]*$/;\nconst DOC = /^[A-Za-z0-9_-]+$/;\nfunction keySql(c) { return `lower(replace(replace(replace(CAST(\"${c}\" AS TEXT), ' ', ''), char(9), ''), char(160), ''))`; }\n// Condition SQL d'une règle : code + rattachement au formulaire (+ ouverture si demandé)\nfunction ruleWhere(rule, value, slug, requireOpen) {\n  const conds = [], args = [];\n  if (value != null) { conds.push(`${keySql(rule.keyColId)} = ?`); args.push(keyNorm(value)); }\n  if (rule.formColId && ID.test(rule.formColId) && slug) {\n    if (rule.formColRef && ID.test(rule.formColRef)) conds.push(`(SELECT \"Slug\" FROM \"${rule.formColRef}\" WHERE id = \"${rule.formColId}\") = ?`);\n    else conds.push(`CAST(\"${rule.formColId}\" AS TEXT) = ?`);\n    args.push(slug);\n  }\n  if (requireOpen && rule.openColId && ID.test(rule.openColId)) conds.push(`\"${rule.openColId}\" = 1`);\n  return { where: conds.length ? conds.join(' AND ') : '1 = 1', args };\n}\n\nconst { config, req, docId, gristUrl } = $input.first().json;\nconst rule = (config.lookups || []).find(l => l.id === req.rule);\nconst value = keyNorm(req.value);\nconst none = { gristUrl, docId, sql: 'SELECT 1 AS ok WHERE 0 = 1', args: [], maps: [] };\nif (!rule || !value || !ID.test(rule.tableId || '') || !ID.test(rule.keyColId || '')) return [{ json: none }];\nconst targetDoc = (rule.external && rule.docId) ? rule.docId : docId;\nif (!DOC.test(targetDoc)) return [{ json: none }];\nconst maps = (rule.mappings || []).filter(m => m.fieldId && ID.test(m.colId || ''));\nconst cols = [...new Set(maps.map(m => m.colId))];\nconst open = rule.openColId && ID.test(rule.openColId) ? [`\"${rule.openColId}\" AS \"__open\"`] : [];\nconst select = [`\"${rule.keyColId}\" AS \"__key\"`].concat(open, cols.map(c => `\"${c}\"`)).join(', ');\nconst w = ruleWhere(rule, value, String(req.f || ''), false);\nreturn [{ json: {\n  gristUrl, docId: targetDoc, maps, args: w.args,\n  sql: `SELECT ${select} FROM \"${rule.tableId}\" WHERE ${w.where} LIMIT 1`\n} }];\n"
       },
-      "id": "cf1cd153-d5aa-4f69-92de-80adc723c66a",
+      "id": "0d3251ed-bd98-44e4-8396-e9d25895c174",
       "name": "Préparer recherche",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -171,7 +171,7 @@
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ sql: $json.sql, args: $json.args }) }}"
       },
-      "id": "6b9cb629-60bd-4f9a-aa9d-ce214dfbabfb",
+      "id": "5da82b25-ac25-4378-a025-f2a086b4a258",
       "name": "Rechercher (SQL)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -190,9 +190,9 @@
     },
     {
       "parameters": {
-        "jsCode": "const prep = $('Préparer recherche').first().json;\nconst res = $input.first().json;\nconst rec = (res.records || [])[0];\nif (!rec) return [{ json: { ok: true, found: false } }];\nconst fields = {};\nprep.maps.forEach(m => { fields[m.fieldId] = rec.fields[m.colId]; });\nconst closed = ('__open' in rec.fields) && !rec.fields.__open;\nreturn [{ json: { ok: true, found: true, closed, key: rec.fields.__key, fields } }];\n"
+        "jsCode": "const prep = $('Préparer recherche').first().json;\nconst res = $input.first().json;\nconst rec = (res.records || [])[0];\nif (!rec) return [{ json: { ok: true, found: false } }];\n// Plusieurs colonnes vers un même élément : une ligne « **Libellé** : valeur » par colonne\nconst show = (v, t) => {\n  if (Array.isArray(v)) return v.slice(v[0] === 'L' ? 1 : 0).join(', ');\n  if (/^Date/.test(t || '') && typeof v === 'number') return new Date(v * 1000).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });\n  return v == null ? '' : String(v);\n};\nconst groups = {};\nprep.maps.forEach(m => { (groups[m.fieldId] = groups[m.fieldId] || []).push(m); });\nconst fields = {};\nObject.entries(groups).forEach(([fid, ms]) => {\n  fields[fid] = ms.length === 1 ? rec.fields[ms[0].colId]\n    : ms.map(m => [m.label || m.colId, show(rec.fields[m.colId], m.type)]).filter(([, v]) => v.trim()).map(([l, v]) => `**${l}** : ${v}`).join('\\n');\n});\nconst closed = ('__open' in rec.fields) && !rec.fields.__open;\nreturn [{ json: { ok: true, found: true, closed, key: rec.fields.__key, fields } }];\n"
       },
-      "id": "6bb406ef-b02a-44df-b6de-2bef85e5fa08",
+      "id": "8d1692ff-72a5-408e-899b-d4b47fd720f4",
       "name": "Réponse recherche",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -209,7 +209,7 @@
         "genericAuthType": "httpHeaderAuth",
         "options": {}
       },
-      "id": "063e8306-79ec-4a23-a7d7-a4a8d5d0fdd8",
+      "id": "c8f8905d-1f25-480e-b85e-19178aab9626",
       "name": "Lire les colonnes",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -228,9 +228,9 @@
     },
     {
       "parameters": {
-        "jsCode": "// ⚠️ Bloc généré à partir du widget (index.html) : même logique de validation que dans le navigateur.\nconst CHOICE_TYPES = ['select', 'radio', 'checkboxes'];\nconst REGEX_TYPES = ['text', 'textarea', 'email', 'tel'];\nconst REGEX_PRESETS = {\n  none:      { label: 'Aucun contrôle', re: '', msg: '' },\n  email:     { label: 'Adresse électronique', re: '^[A-Za-z0-9._%+\\\\-]+@[A-Za-z0-9\\\\-]+(\\\\.[A-Za-z0-9\\\\-]+)*\\\\.[A-Za-z]{2,}$',\n               msg: 'Saisissez une adresse électronique valide, par exemple prenom.nom@agriculture.gouv.fr' },\n  emailGouv: { label: 'Adresse électronique en .gouv.fr', re: '^[A-Za-z0-9._%+\\\\-]+@([A-Za-z0-9\\\\-]+\\\\.)*gouv\\\\.fr$',\n               msg: 'Saisissez une adresse se terminant par .gouv.fr' },\n  emailAgri: { label: 'Adresse agriculture.gouv.fr ou educagri.fr', re: '^[A-Za-z0-9._%+\\\\-]+@(agriculture\\\\.gouv\\\\.fr|educagri\\\\.fr)$',\n               msg: 'Saisissez une adresse en @agriculture.gouv.fr ou @educagri.fr' },\n  telFR:     { label: 'Téléphone français', re: '^(?:(?:\\\\+|00)33\\\\s?|0)[1-9](?:[\\\\s.\\\\-]?\\\\d{2}){4}$',\n               msg: 'Saisissez un numéro valide, par exemple 06 12 34 56 78' },\n  cp:        { label: 'Code postal', re: '^\\\\d{5}$', msg: 'Le code postal comporte 5 chiffres' },\n  siret:     { label: 'SIRET (14 chiffres)', re: '^\\\\d{3}\\\\s?\\\\d{3}\\\\s?\\\\d{3}\\\\s?\\\\d{5}$', msg: 'Le SIRET comporte 14 chiffres' },\n  uai:       { label: 'Code UAI d’établissement', re: '^\\\\d{7}[A-Za-z]$', msg: 'Le code UAI comporte 7 chiffres suivis d’une lettre' },\n  custom:    { label: 'Expression personnalisée…', re: '', msg: '' }\n};\nfunction isEmpty(v) { return v == null || v === '' || v === false || (Array.isArray(v) && !v.length); }\nfunction norm(v) { return String(v == null ? '' : v).trim().toLowerCase(); }\nfunction keyNorm(v) { return String(v == null ? '' : v).toLowerCase().replace(/\\s+/g, ''); }\nfunction isInput(f) { return !!f && f.type !== 'section' && f.type !== 'contenu' && f.type !== 'explication'; }\nfunction testCond(c, values) {\n  const op = c.op || 'eq';\n  const v = values[c.fieldId];\n  if (op === 'empty') return isEmpty(v);\n  if (op === 'notEmpty') return !isEmpty(v);\n  if (op === 'gt' || op === 'lt') {\n    if (isEmpty(v)) return false;\n    const a = Number(String(v).replace(',', '.')), b = Number(String(c.value).replace(',', '.'));\n    if (isNaN(a) || isNaN(b)) return false;\n    return op === 'gt' ? a > b : a < b;\n  }\n  const target = norm(c.value);\n  const arr = Array.isArray(v) ? v.map(norm) : typeof v === 'boolean' ? [v ? 'oui' : 'non'] : [norm(v)];\n  if (op === 'eq') return arr.includes(target);\n  if (op === 'neq') return !arr.includes(target);\n  if (op === 'contains') return arr.some(x => x.includes(target));\n  return true;\n}\nfunction computeVisibilityFrom(fields, values) {\n  const vis = {};\n  let sectionVisible = true;\n  for (const f of fields) {\n    let own = true;\n    if (f.condition && f.condition.fieldId) own = vis[f.condition.fieldId] !== false && testCond(f.condition, values);\n    if (f.type === 'section') { sectionVisible = own; vis[f.id] = own; }\n    else vis[f.id] = own && sectionVisible;\n  }\n  return vis;\n}\nfunction getRule(f) {\n  const p = f.regexPreset || 'none';\n  if (p === 'custom') return f.regex ? { re: f.regex, msg: f.regexMessage || 'Le format saisi n’est pas valide.' } : null;\n  if (p !== 'none' && REGEX_PRESETS[p]) return { re: REGEX_PRESETS[p].re, msg: f.regexMessage || REGEX_PRESETS[p].msg };\n  if (f.type === 'email') return { re: REGEX_PRESETS.email.re, msg: f.regexMessage || REGEX_PRESETS.email.msg };\n  return null;\n}\nfunction compileRule(rule) {\n  if (!rule || !rule.re) return null;\n  let src = rule.re, flags = '';\n  const m = /^\\/(.*)\\/([gimsuy]*)$/.exec(src);\n  if (m) { src = m[1]; flags = m[2].replace('g', ''); }\n  try { return new RegExp(src, flags); } catch (e) { return null; }\n}\nfunction validateField(f, v) {\n  if (f.required && isEmpty(v)) {\n    if (f.type === 'checkbox') return 'Vous devez cocher cette case.';\n    if (f.type === 'checkboxes') return 'Cochez au moins une option.';\n    return CHOICE_TYPES.includes(f.type) ? 'Sélectionnez une option.' : 'Ce champ est obligatoire.';\n  }\n  if (isEmpty(v)) return '';\n  if (f.type === 'number' && isNaN(Number(String(v).replace(',', '.').replace(/\\s/g, '')))) return 'Saisissez un nombre.';\n  if (f.type === 'date' && !/^\\d{4}-\\d{2}-\\d{2}$/.test(String(v))) return 'Saisissez une date valide.';\n  if (typeof v === 'string') {\n    const rule = getRule(f);\n    const rx = compileRule(rule);\n    if (rx && !rx.test(v)) return rule.msg;\n  }\n  return '';\n}\nfunction toGristTyped(f, v, t) {\n  t = t || '';\n  if (t === 'Bool') return typeof v === 'boolean' ? v : /^(oui|true|1|yes|vrai)$/i.test(String(v));\n  if (t === 'Numeric' || t === 'Int') {\n    if (v === '' || v == null) return null;\n    const n = Number(String(v).replace(',', '.').replace(/\\s/g, ''));\n    return isNaN(n) ? String(v) : (t === 'Int' ? Math.round(n) : n);\n  }\n  if (t === 'Date' || t.indexOf('DateTime') === 0) {\n    const m = /^(\\d{4})-(\\d{2})-(\\d{2})$/.exec(String(v));\n    return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) / 1000 : (v || null);\n  }\n  if (t === 'ChoiceList') {\n    const arr = Array.isArray(v) ? v : (isEmpty(v) ? [] : [String(v)]);\n    return arr.length ? ['L'].concat(arr) : null;\n  }\n  if (!t) {\n    if (f.type === 'checkbox') return !!v;\n    if (f.type === 'number') return v === '' ? null : Number(String(v).replace(',', '.'));\n  }\n  if (typeof v === 'boolean') return v ? 'Oui' : 'Non';\n  if (Array.isArray(v)) return v.join(', ');\n  return v;\n}\n\nconst ID = /^[A-Za-z_][A-Za-z0-9_]*$/;\nconst DOC = /^[A-Za-z0-9_-]+$/;\nfunction keySql(c) { return `lower(replace(replace(replace(CAST(\"${c}\" AS TEXT), ' ', ''), char(9), ''), char(160), ''))`; }\n// Condition SQL d'une règle : code + rattachement au formulaire (+ ouverture si demandé)\nfunction ruleWhere(rule, value, slug, requireOpen) {\n  const conds = [`${keySql(rule.keyColId)} = ?`], args = [keyNorm(value)];\n  if (rule.formColId && ID.test(rule.formColId) && slug) {\n    if (rule.formColRef && ID.test(rule.formColRef)) conds.push(`(SELECT \"Slug\" FROM \"${rule.formColRef}\" WHERE id = \"${rule.formColId}\") = ?`);\n    else conds.push(`CAST(\"${rule.formColId}\" AS TEXT) = ?`);\n    args.push(slug);\n  }\n  if (requireOpen && rule.openColId && ID.test(rule.openColId)) conds.push(`\"${rule.openColId}\" = 1`);\n  return { where: conds.join(' AND '), args };\n}\n\nconst prep = $('Préparer').first().json;\nconst colsRes = $input.first().json;\nconst config = prep.config || {};\nconst req = prep.req || {};\nconst fields = config.fields || [];\nconst raw = (req.values && typeof req.values === 'object') ? req.values : {};\nconst types = {};\n(colsRes.columns || []).forEach(c => { types[c.id] = (c.fields && c.fields.type) || ''; });\n\n// 1. Nettoyage des valeurs reçues\nconst values = {};\nfields.forEach(f => {\n  let v = raw[f.id];\n  if (!isInput(f)) v = null;\n  else if (f.type === 'checkbox') v = v === true || v === 'true';\n  else if (f.type === 'checkboxes') v = Array.isArray(v) ? v.map(String).filter(x => (f.options || []).includes(x)) : [];\n  else v = v == null ? '' : String(v).trim().slice(0, 10000);\n  values[f.id] = v;\n});\nconst badChoice = {};\nfields.forEach(f => { if (f.type === 'radio' && values[f.id] && !(f.options || []).includes(values[f.id])) badChoice[f.id] = 'Sélectionnez une des options proposées.'; });\n\n// 2. Affichage conditionnel et validation (mêmes règles que le navigateur)\nconst vis = computeVisibilityFrom(fields, values);\nconst errors = {};\nfields.filter(isInput).forEach(f => {\n  if (!vis[f.id]) return;\n  const m = validateField(f, values[f.id]) || badChoice[f.id];\n  if (m) errors[f.id] = m;\n});\nif (!colsRes.columns) errors._global = 'Le formulaire est momentanément indisponible (table des réponses inaccessible).';\nelse {\n  const missing = fields.filter(f => isInput(f) && f.colId && vis[f.id] && !(f.colId in types)).map(f => f.colId);\n  // Visible dans l'historique d'exécution n8n ; message générique pour l'usager\n  if (missing.length) { console.log('Colonnes absentes de la table des réponses : ' + missing.join(', ')); errors._global = 'Le formulaire est momentanément indisponible (configuration incomplète).'; }\n}\n\n// 3. Ligne à enregistrer\nconst record = {};\nfields.forEach(f => {\n  if (isInput(f) && f.colId && vis[f.id] && f.colId in types) record[f.colId] = toGristTyped(f, values[f.id], types[f.colId]);\n});\n\n// 4. Contrôles : code existant, rattaché à ce formulaire, inscriptions ouvertes\nconst checks = [{ sql: 'SELECT 1 AS ok', args: [], docId: prep.docId, fieldId: null }];\n(config.lookups || []).forEach(l => {\n  const f = fields.find(x => x.id === l.triggerFieldId);\n  if (!(l.mustMatch || l.openColId || l.formColId) || !f || !vis[f.id] || isEmpty(values[f.id]) || errors[f.id]) return;\n  if (!ID.test(l.tableId || '') || !ID.test(l.keyColId || '')) return;\n  const d = (l.external && l.docId) ? l.docId : prep.docId;\n  if (!DOC.test(d)) return;\n  const w = ruleWhere(l, values[f.id], String(req.f || ''), true);\n  checks.push({ sql: `SELECT 1 AS ok FROM \"${l.tableId}\" WHERE ${w.where} LIMIT 1`, args: w.args, docId: d, fieldId: f.id });\n});\n\nconst base = {\n  record, errors, tableId: prep.respTableId, saveDocId: prep.respDocId,\n  spam: !!(req.hp && String(req.hp).trim())\n};\nreturn checks.map((c, i) => ({ json: Object.assign({ gristUrl: prep.gristUrl }, c, i === 0 ? base : {}) }));\n"
+        "jsCode": "// ⚠️ Bloc généré à partir du widget (index.html) : même logique de validation que dans le navigateur.\nconst CHOICE_TYPES = ['select', 'radio', 'checkboxes'];\nconst REGEX_TYPES = ['text', 'textarea', 'email', 'tel'];\nconst REGEX_PRESETS = {\n  none:      { label: 'Aucun contrôle', re: '', msg: '' },\n  email:     { label: 'Adresse électronique', re: '^[A-Za-z0-9._%+\\\\-]+@[A-Za-z0-9\\\\-]+(\\\\.[A-Za-z0-9\\\\-]+)*\\\\.[A-Za-z]{2,}$',\n               msg: 'Saisissez une adresse électronique valide, par exemple prenom.nom@agriculture.gouv.fr' },\n  emailGouv: { label: 'Adresse électronique en .gouv.fr', re: '^[A-Za-z0-9._%+\\\\-]+@([A-Za-z0-9\\\\-]+\\\\.)*gouv\\\\.fr$',\n               msg: 'Saisissez une adresse se terminant par .gouv.fr' },\n  emailAgri: { label: 'Adresse agriculture.gouv.fr ou educagri.fr', re: '^[A-Za-z0-9._%+\\\\-]+@(agriculture\\\\.gouv\\\\.fr|educagri\\\\.fr)$',\n               msg: 'Saisissez une adresse en @agriculture.gouv.fr ou @educagri.fr' },\n  telFR:     { label: 'Téléphone français', re: '^(?:(?:\\\\+|00)33\\\\s?|0)[1-9](?:[\\\\s.\\\\-]?\\\\d{2}){4}$',\n               msg: 'Saisissez un numéro valide, par exemple 06 12 34 56 78' },\n  cp:        { label: 'Code postal', re: '^\\\\d{5}$', msg: 'Le code postal comporte 5 chiffres' },\n  siret:     { label: 'SIRET (14 chiffres)', re: '^\\\\d{3}\\\\s?\\\\d{3}\\\\s?\\\\d{3}\\\\s?\\\\d{5}$', msg: 'Le SIRET comporte 14 chiffres' },\n  uai:       { label: 'Code UAI d’établissement', re: '^\\\\d{7}[A-Za-z]$', msg: 'Le code UAI comporte 7 chiffres suivis d’une lettre' },\n  custom:    { label: 'Expression personnalisée…', re: '', msg: '' }\n};\nfunction isEmpty(v) { return v == null || v === '' || v === false || (Array.isArray(v) && !v.length); }\nfunction norm(v) { return String(v == null ? '' : v).trim().toLowerCase(); }\nfunction keyNorm(v) { return String(v == null ? '' : v).toLowerCase().replace(/\\s+/g, ''); }\nfunction isInput(f) { return !!f && f.type !== 'section' && f.type !== 'contenu' && f.type !== 'explication'; }\nfunction testCond(c, values) {\n  const op = c.op || 'eq';\n  const v = values[c.fieldId];\n  if (op === 'empty') return isEmpty(v);\n  if (op === 'notEmpty') return !isEmpty(v);\n  if (op === 'gt' || op === 'lt') {\n    if (isEmpty(v)) return false;\n    const a = Number(String(v).replace(',', '.')), b = Number(String(c.value).replace(',', '.'));\n    if (isNaN(a) || isNaN(b)) return false;\n    return op === 'gt' ? a > b : a < b;\n  }\n  const target = norm(c.value);\n  const arr = Array.isArray(v) ? v.map(norm) : typeof v === 'boolean' ? [v ? 'oui' : 'non'] : [norm(v)];\n  if (op === 'eq') return arr.includes(target);\n  if (op === 'neq') return !arr.includes(target);\n  if (op === 'contains') return arr.some(x => x.includes(target));\n  return true;\n}\nfunction computeVisibilityFrom(fields, values) {\n  const vis = {};\n  let sectionVisible = true;\n  for (const f of fields) {\n    let own = true;\n    if (f.condition && f.condition.fieldId) own = vis[f.condition.fieldId] !== false && testCond(f.condition, values);\n    if (f.type === 'section') { sectionVisible = own; vis[f.id] = own; }\n    else vis[f.id] = own && sectionVisible;\n  }\n  return vis;\n}\nfunction getRule(f) {\n  const p = f.regexPreset || 'none';\n  if (p === 'custom') return f.regex ? { re: f.regex, msg: f.regexMessage || 'Le format saisi n’est pas valide.' } : null;\n  if (p !== 'none' && REGEX_PRESETS[p]) return { re: REGEX_PRESETS[p].re, msg: f.regexMessage || REGEX_PRESETS[p].msg };\n  if (f.type === 'email') return { re: REGEX_PRESETS.email.re, msg: f.regexMessage || REGEX_PRESETS.email.msg };\n  return null;\n}\nfunction compileRule(rule) {\n  if (!rule || !rule.re) return null;\n  let src = rule.re, flags = '';\n  const m = /^\\/(.*)\\/([gimsuy]*)$/.exec(src);\n  if (m) { src = m[1]; flags = m[2].replace('g', ''); }\n  try { return new RegExp(src, flags); } catch (e) { return null; }\n}\nfunction validateField(f, v) {\n  if (f.required && isEmpty(v)) {\n    if (f.type === 'checkbox') return 'Vous devez cocher cette case.';\n    if (f.type === 'checkboxes') return 'Cochez au moins une option.';\n    return CHOICE_TYPES.includes(f.type) ? 'Sélectionnez une option.' : 'Ce champ est obligatoire.';\n  }\n  if (isEmpty(v)) return '';\n  if (f.type === 'number' && isNaN(Number(String(v).replace(',', '.').replace(/\\s/g, '')))) return 'Saisissez un nombre.';\n  if (f.type === 'date' && !/^\\d{4}-\\d{2}-\\d{2}$/.test(String(v))) return 'Saisissez une date valide.';\n  if (typeof v === 'string') {\n    const rule = getRule(f);\n    const rx = compileRule(rule);\n    if (rx && !rx.test(v)) return rule.msg;\n  }\n  return '';\n}\nfunction toGristTyped(f, v, t) {\n  t = t || '';\n  if (t === 'Bool') return typeof v === 'boolean' ? v : /^(oui|true|1|yes|vrai)$/i.test(String(v));\n  if (t === 'Numeric' || t === 'Int') {\n    if (v === '' || v == null) return null;\n    const n = Number(String(v).replace(',', '.').replace(/\\s/g, ''));\n    return isNaN(n) ? String(v) : (t === 'Int' ? Math.round(n) : n);\n  }\n  if (t === 'Date' || t.indexOf('DateTime') === 0) {\n    const m = /^(\\d{4})-(\\d{2})-(\\d{2})$/.exec(String(v));\n    return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) / 1000 : (v || null);\n  }\n  if (t === 'ChoiceList') {\n    const arr = Array.isArray(v) ? v : (isEmpty(v) ? [] : [String(v)]);\n    return arr.length ? ['L'].concat(arr) : null;\n  }\n  if (!t) {\n    if (f.type === 'checkbox') return !!v;\n    if (f.type === 'number') return v === '' ? null : Number(String(v).replace(',', '.'));\n  }\n  if (typeof v === 'boolean') return v ? 'Oui' : 'Non';\n  if (Array.isArray(v)) return v.join(', ');\n  return v;\n}\n\nconst ID = /^[A-Za-z_][A-Za-z0-9_]*$/;\nconst DOC = /^[A-Za-z0-9_-]+$/;\nfunction keySql(c) { return `lower(replace(replace(replace(CAST(\"${c}\" AS TEXT), ' ', ''), char(9), ''), char(160), ''))`; }\n// Condition SQL d'une règle : code + rattachement au formulaire (+ ouverture si demandé)\nfunction ruleWhere(rule, value, slug, requireOpen) {\n  const conds = [], args = [];\n  if (value != null) { conds.push(`${keySql(rule.keyColId)} = ?`); args.push(keyNorm(value)); }\n  if (rule.formColId && ID.test(rule.formColId) && slug) {\n    if (rule.formColRef && ID.test(rule.formColRef)) conds.push(`(SELECT \"Slug\" FROM \"${rule.formColRef}\" WHERE id = \"${rule.formColId}\") = ?`);\n    else conds.push(`CAST(\"${rule.formColId}\" AS TEXT) = ?`);\n    args.push(slug);\n  }\n  if (requireOpen && rule.openColId && ID.test(rule.openColId)) conds.push(`\"${rule.openColId}\" = 1`);\n  return { where: conds.length ? conds.join(' AND ') : '1 = 1', args };\n}\n\nconst prep = $('Préparer').first().json;\nconst colsRes = $input.first().json;\nconst config = prep.config || {};\nconst req = prep.req || {};\nconst fields = config.fields || [];\nconst raw = (req.values && typeof req.values === 'object') ? req.values : {};\nconst types = {};\n(colsRes.columns || []).forEach(c => { types[c.id] = (c.fields && c.fields.type) || ''; });\n\n// 1. Nettoyage des valeurs reçues\nconst values = {};\nfields.forEach(f => {\n  let v = raw[f.id];\n  if (!isInput(f)) v = null;\n  else if (f.type === 'checkbox') v = v === true || v === 'true';\n  else if (f.type === 'checkboxes') v = Array.isArray(v) ? v.map(String).filter(x => (f.options || []).includes(x)) : [];\n  else v = v == null ? '' : String(v).trim().slice(0, 10000);\n  values[f.id] = v;\n});\nconst badChoice = {};\nfields.forEach(f => { if (f.type === 'radio' && values[f.id] && !(f.options || []).includes(values[f.id])) badChoice[f.id] = 'Sélectionnez une des options proposées.'; });\n\n// 2. Affichage conditionnel et validation (mêmes règles que le navigateur)\nconst vis = computeVisibilityFrom(fields, values);\nconst errors = {};\nfields.filter(isInput).forEach(f => {\n  if (!vis[f.id]) return;\n  const m = validateField(f, values[f.id]) || badChoice[f.id];\n  if (m) errors[f.id] = m;\n});\nif (!colsRes.columns) errors._global = 'Le formulaire est momentanément indisponible (table des réponses inaccessible).';\nelse {\n  const missing = fields.filter(f => isInput(f) && f.colId && vis[f.id] && !(f.colId in types)).map(f => f.colId);\n  // Visible dans l'historique d'exécution n8n ; message générique pour l'usager\n  if (missing.length) { console.log('Colonnes absentes de la table des réponses : ' + missing.join(', ')); errors._global = 'Le formulaire est momentanément indisponible (configuration incomplète).'; }\n}\n\n// 3. Ligne à enregistrer\nconst record = {};\nfields.forEach(f => {\n  if (isInput(f) && f.colId && vis[f.id] && f.colId in types) record[f.colId] = toGristTyped(f, values[f.id], types[f.colId]);\n});\n\n// 4. Contrôles : code existant, rattaché à ce formulaire, inscriptions ouvertes\nconst checks = [{ sql: 'SELECT 1 AS ok', args: [], docId: prep.docId, fieldId: null }];\n(config.lookups || []).forEach(l => {\n  const f = fields.find(x => x.id === l.triggerFieldId);\n  if (!(l.mustMatch || l.openColId || l.formColId) || !f || !vis[f.id] || isEmpty(values[f.id]) || errors[f.id]) return;\n  if (!ID.test(l.tableId || '') || !ID.test(l.keyColId || '')) return;\n  const d = (l.external && l.docId) ? l.docId : prep.docId;\n  if (!DOC.test(d)) return;\n  const w = ruleWhere(l, values[f.id], String(req.f || ''), true);\n  checks.push({ sql: `SELECT 1 AS ok FROM \"${l.tableId}\" WHERE ${w.where} LIMIT 1`, args: w.args, docId: d, fieldId: f.id });\n});\n\nconst base = {\n  record, errors, tableId: prep.respTableId, saveDocId: prep.respDocId,\n  spam: !!(req.hp && String(req.hp).trim())\n};\nreturn checks.map((c, i) => ({ json: Object.assign({ gristUrl: prep.gristUrl }, c, i === 0 ? base : {}) }));\n"
       },
-      "id": "99f6cd32-9bb8-4b05-a573-8de7f83d2d6d",
+      "id": "47a0e6be-09d6-4359-9b63-f0be4d223dcd",
       "name": "Valider",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -250,7 +250,7 @@
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ sql: $json.sql, args: $json.args }) }}"
       },
-      "id": "90e92c2f-42ef-490c-b34d-e50b18a1dfc9",
+      "id": "5e19f2c9-eeab-4d7e-a13e-130cc6e99941",
       "name": "Vérifier (SQL)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -271,7 +271,7 @@
       "parameters": {
         "jsCode": "const items = $('Valider').all().map(i => i.json);\nconst results = $input.all().map(i => i.json);\nconst base = items[0];\nif (base.spam) return [{ json: { route: 2, ok: true, id: null } }];\nconst errors = Object.assign({}, base.errors);\nitems.forEach((c, i) => {\n  if (!c.fieldId) return;\n  const r = results[i];\n  if (!(r && Array.isArray(r.records) && r.records.length)) errors[c.fieldId] = errors[c.fieldId] || 'Code introuvable ou inscriptions closes.';\n});\nconst global = errors._global;\ndelete errors._global;\nif (global || Object.keys(errors).length) {\n  return [{ json: { route: 1, ok: false, errors, message: global || 'Le formulaire contient des erreurs. Corrigez les champs signalés.' } }];\n}\nreturn [{ json: { route: 0, gristUrl: base.gristUrl, docId: base.saveDocId, tableId: base.tableId, record: base.record } }];\n"
       },
-      "id": "55ab7701-bab6-4223-8d70-786b6b89f3f6",
+      "id": "6db96632-58a2-4ce0-806c-c81b3c8a12a1",
       "name": "Décider",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -286,7 +286,7 @@
         "numberOutputs": 3,
         "output": "={{ $json.route }}"
       },
-      "id": "9e896bc7-1384-497e-a517-fd602856c55d",
+      "id": "65bb1a7d-9b63-4489-b67b-394bf581971c",
       "name": "Résultat",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3,
@@ -306,7 +306,7 @@
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ records: [ { fields: $json.record } ] }) }}"
       },
-      "id": "28f8e89d-9347-492b-bd8d-defbcadaa23c",
+      "id": "87e766f8-deea-46bd-86fc-951c60a3c2b0",
       "name": "Enregistrer la réponse",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -327,7 +327,7 @@
       "parameters": {
         "jsCode": "const r = $input.first().json;\nconst id = r.records && r.records[0] && r.records[0].id;\nreturn [{ json: id ? { ok: true, id } : { ok: false, message: 'L’enregistrement a échoué. Réessayez dans quelques instants.' } }];\n"
       },
-      "id": "297f116d-8995-412d-81d4-b73b48d62383",
+      "id": "b132c2e7-f38f-4c3b-86de-41c0b2a04256",
       "name": "Résultat dépôt",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -338,11 +338,65 @@
     },
     {
       "parameters": {
-        "content": "## Formulaire DSFR – relais Grist\n1. Créez une identification **Header Auth** nommée « Grist API » : nom `Authorization`, valeur `Bearer VOTRE_CLE_API_GRIST`, puis sélectionnez-la dans les 5 nœuds HTTP.\n2. Renseignez l’URL Grist et l’identifiant du document dans **Paramètres**.\n3. Activez le workflow : l’URL de production du **Webhook** est à coller dans le widget (onglet Publication).",
+        "jsCode": "// ⚠️ Bloc généré à partir du widget (index.html) : même logique de validation que dans le navigateur.\nconst CHOICE_TYPES = ['select', 'radio', 'checkboxes'];\nconst REGEX_TYPES = ['text', 'textarea', 'email', 'tel'];\nconst REGEX_PRESETS = {\n  none:      { label: 'Aucun contrôle', re: '', msg: '' },\n  email:     { label: 'Adresse électronique', re: '^[A-Za-z0-9._%+\\\\-]+@[A-Za-z0-9\\\\-]+(\\\\.[A-Za-z0-9\\\\-]+)*\\\\.[A-Za-z]{2,}$',\n               msg: 'Saisissez une adresse électronique valide, par exemple prenom.nom@agriculture.gouv.fr' },\n  emailGouv: { label: 'Adresse électronique en .gouv.fr', re: '^[A-Za-z0-9._%+\\\\-]+@([A-Za-z0-9\\\\-]+\\\\.)*gouv\\\\.fr$',\n               msg: 'Saisissez une adresse se terminant par .gouv.fr' },\n  emailAgri: { label: 'Adresse agriculture.gouv.fr ou educagri.fr', re: '^[A-Za-z0-9._%+\\\\-]+@(agriculture\\\\.gouv\\\\.fr|educagri\\\\.fr)$',\n               msg: 'Saisissez une adresse en @agriculture.gouv.fr ou @educagri.fr' },\n  telFR:     { label: 'Téléphone français', re: '^(?:(?:\\\\+|00)33\\\\s?|0)[1-9](?:[\\\\s.\\\\-]?\\\\d{2}){4}$',\n               msg: 'Saisissez un numéro valide, par exemple 06 12 34 56 78' },\n  cp:        { label: 'Code postal', re: '^\\\\d{5}$', msg: 'Le code postal comporte 5 chiffres' },\n  siret:     { label: 'SIRET (14 chiffres)', re: '^\\\\d{3}\\\\s?\\\\d{3}\\\\s?\\\\d{3}\\\\s?\\\\d{5}$', msg: 'Le SIRET comporte 14 chiffres' },\n  uai:       { label: 'Code UAI d’établissement', re: '^\\\\d{7}[A-Za-z]$', msg: 'Le code UAI comporte 7 chiffres suivis d’une lettre' },\n  custom:    { label: 'Expression personnalisée…', re: '', msg: '' }\n};\nfunction isEmpty(v) { return v == null || v === '' || v === false || (Array.isArray(v) && !v.length); }\nfunction norm(v) { return String(v == null ? '' : v).trim().toLowerCase(); }\nfunction keyNorm(v) { return String(v == null ? '' : v).toLowerCase().replace(/\\s+/g, ''); }\nfunction isInput(f) { return !!f && f.type !== 'section' && f.type !== 'contenu' && f.type !== 'explication'; }\nfunction testCond(c, values) {\n  const op = c.op || 'eq';\n  const v = values[c.fieldId];\n  if (op === 'empty') return isEmpty(v);\n  if (op === 'notEmpty') return !isEmpty(v);\n  if (op === 'gt' || op === 'lt') {\n    if (isEmpty(v)) return false;\n    const a = Number(String(v).replace(',', '.')), b = Number(String(c.value).replace(',', '.'));\n    if (isNaN(a) || isNaN(b)) return false;\n    return op === 'gt' ? a > b : a < b;\n  }\n  const target = norm(c.value);\n  const arr = Array.isArray(v) ? v.map(norm) : typeof v === 'boolean' ? [v ? 'oui' : 'non'] : [norm(v)];\n  if (op === 'eq') return arr.includes(target);\n  if (op === 'neq') return !arr.includes(target);\n  if (op === 'contains') return arr.some(x => x.includes(target));\n  return true;\n}\nfunction computeVisibilityFrom(fields, values) {\n  const vis = {};\n  let sectionVisible = true;\n  for (const f of fields) {\n    let own = true;\n    if (f.condition && f.condition.fieldId) own = vis[f.condition.fieldId] !== false && testCond(f.condition, values);\n    if (f.type === 'section') { sectionVisible = own; vis[f.id] = own; }\n    else vis[f.id] = own && sectionVisible;\n  }\n  return vis;\n}\nfunction getRule(f) {\n  const p = f.regexPreset || 'none';\n  if (p === 'custom') return f.regex ? { re: f.regex, msg: f.regexMessage || 'Le format saisi n’est pas valide.' } : null;\n  if (p !== 'none' && REGEX_PRESETS[p]) return { re: REGEX_PRESETS[p].re, msg: f.regexMessage || REGEX_PRESETS[p].msg };\n  if (f.type === 'email') return { re: REGEX_PRESETS.email.re, msg: f.regexMessage || REGEX_PRESETS.email.msg };\n  return null;\n}\nfunction compileRule(rule) {\n  if (!rule || !rule.re) return null;\n  let src = rule.re, flags = '';\n  const m = /^\\/(.*)\\/([gimsuy]*)$/.exec(src);\n  if (m) { src = m[1]; flags = m[2].replace('g', ''); }\n  try { return new RegExp(src, flags); } catch (e) { return null; }\n}\nfunction validateField(f, v) {\n  if (f.required && isEmpty(v)) {\n    if (f.type === 'checkbox') return 'Vous devez cocher cette case.';\n    if (f.type === 'checkboxes') return 'Cochez au moins une option.';\n    return CHOICE_TYPES.includes(f.type) ? 'Sélectionnez une option.' : 'Ce champ est obligatoire.';\n  }\n  if (isEmpty(v)) return '';\n  if (f.type === 'number' && isNaN(Number(String(v).replace(',', '.').replace(/\\s/g, '')))) return 'Saisissez un nombre.';\n  if (f.type === 'date' && !/^\\d{4}-\\d{2}-\\d{2}$/.test(String(v))) return 'Saisissez une date valide.';\n  if (typeof v === 'string') {\n    const rule = getRule(f);\n    const rx = compileRule(rule);\n    if (rx && !rx.test(v)) return rule.msg;\n  }\n  return '';\n}\nfunction toGristTyped(f, v, t) {\n  t = t || '';\n  if (t === 'Bool') return typeof v === 'boolean' ? v : /^(oui|true|1|yes|vrai)$/i.test(String(v));\n  if (t === 'Numeric' || t === 'Int') {\n    if (v === '' || v == null) return null;\n    const n = Number(String(v).replace(',', '.').replace(/\\s/g, ''));\n    return isNaN(n) ? String(v) : (t === 'Int' ? Math.round(n) : n);\n  }\n  if (t === 'Date' || t.indexOf('DateTime') === 0) {\n    const m = /^(\\d{4})-(\\d{2})-(\\d{2})$/.exec(String(v));\n    return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) / 1000 : (v || null);\n  }\n  if (t === 'ChoiceList') {\n    const arr = Array.isArray(v) ? v : (isEmpty(v) ? [] : [String(v)]);\n    return arr.length ? ['L'].concat(arr) : null;\n  }\n  if (!t) {\n    if (f.type === 'checkbox') return !!v;\n    if (f.type === 'number') return v === '' ? null : Number(String(v).replace(',', '.'));\n  }\n  if (typeof v === 'boolean') return v ? 'Oui' : 'Non';\n  if (Array.isArray(v)) return v.join(', ');\n  return v;\n}\n\nconst ID = /^[A-Za-z_][A-Za-z0-9_]*$/;\nconst DOC = /^[A-Za-z0-9_-]+$/;\nfunction keySql(c) { return `lower(replace(replace(replace(CAST(\"${c}\" AS TEXT), ' ', ''), char(9), ''), char(160), ''))`; }\n// Condition SQL d'une règle : code + rattachement au formulaire (+ ouverture si demandé)\nfunction ruleWhere(rule, value, slug, requireOpen) {\n  const conds = [], args = [];\n  if (value != null) { conds.push(`${keySql(rule.keyColId)} = ?`); args.push(keyNorm(value)); }\n  if (rule.formColId && ID.test(rule.formColId) && slug) {\n    if (rule.formColRef && ID.test(rule.formColRef)) conds.push(`(SELECT \"Slug\" FROM \"${rule.formColRef}\" WHERE id = \"${rule.formColId}\") = ?`);\n    else conds.push(`CAST(\"${rule.formColId}\" AS TEXT) = ?`);\n    args.push(slug);\n  }\n  if (requireOpen && rule.openColId && ID.test(rule.openColId)) conds.push(`\"${rule.openColId}\" = 1`);\n  return { where: conds.length ? conds.join(' AND ') : '1 = 1', args };\n}\n\n// Liste des choix d'un champ « Choix dans une table » (codes + intitulés, filtrés par formulaire et ouverture)\nconst { config, req, docId, gristUrl } = $input.first().json;\nconst rule = (config.lookups || []).find(l => l.id === req.rule);\nconst none = { gristUrl, docId, sql: 'SELECT 1 AS ok WHERE 0 = 1', args: [] };\nconst trig = rule && (config.fields || []).find(f => f.id === rule.triggerFieldId);\nif (!rule || !trig || trig.type !== 'tableselect' || !ID.test(rule.tableId || '') || !ID.test(rule.keyColId || '')) return [{ json: none }];\nconst targetDoc = (rule.external && rule.docId) ? rule.docId : docId;\nif (!DOC.test(targetDoc)) return [{ json: none }];\nconst lab = rule.labelColId && ID.test(rule.labelColId) ? `, \"${rule.labelColId}\" AS \"__label\"` : '';\nconst w = ruleWhere(rule, null, String(req.f || ''), true);\nreturn [{ json: { gristUrl, docId: targetDoc, args: w.args,\n  sql: `SELECT \"${rule.keyColId}\" AS \"__key\"${lab} FROM \"${rule.tableId}\" WHERE ${w.where} ORDER BY 1 LIMIT 5000` } }];\n"
+      },
+      "id": "65843645-ff91-4bc7-a208-56ae65f4bfe7",
+      "name": "Préparer la liste",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.gristUrl }}/api/docs/{{ $json.docId }}/sql",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {},
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ sql: $json.sql, args: $json.args }) }}"
+      },
+      "id": "3f4b842c-fea9-4b6d-be19-837bef4b9a20",
+      "name": "Lister (SQL)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        640
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "grist-api-key",
+          "name": "Grist API"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const res = $input.first().json;\nconst options = (res.records || []).map(r => ({ value: String(r.fields.__key ?? '').trim(), label: r.fields.__label == null ? '' : String(r.fields.__label) }))\n  .filter(o => o.value);\nreturn [{ json: { ok: true, options } }];\n"
+      },
+      "id": "963456d1-054a-4769-bc8f-597ab0d4ba69",
+      "name": "Réponse liste",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Formulaire DSFR – relais Grist\n1. Créez une identification **Header Auth** nommée « Grist API » : nom `Authorization`, valeur `Bearer VOTRE_CLE_API_GRIST`, puis sélectionnez-la dans les 6 nœuds HTTP.\n2. Renseignez l’URL Grist et l’identifiant du document dans **Paramètres**.\n3. Activez le workflow : l’URL de production du **Webhook** est à coller dans le widget (onglet Publication).",
         "height": 260,
         "width": 420
       },
-      "id": "f84d222f-d265-48c0-9904-4a3b8b6cbdde",
+      "id": "afe245fe-bc40-4fb6-b678-9b7a0b5cf8b5",
       "name": "Mode d’emploi",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
@@ -416,6 +470,13 @@
         [
           {
             "node": "Lire les colonnes",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Préparer la liste",
             "type": "main",
             "index": 0
           }
@@ -565,6 +626,39 @@
       ]
     },
     "Résultat dépôt": {
+      "main": [
+        [
+          {
+            "node": "Répondre",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Préparer la liste": {
+      "main": [
+        [
+          {
+            "node": "Lister (SQL)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lister (SQL)": {
+      "main": [
+        [
+          {
+            "node": "Réponse liste",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Réponse liste": {
       "main": [
         [
           {

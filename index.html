@@ -140,6 +140,7 @@ let remote = false;   // true : formulaire public servi par n8n
 
 const TYPES = {
   section: 'Titre de section',
+  tableselect: 'Choix dans une table (liste avec recherche)',
   contenu: 'Bloc de texte (non saisissable)',
   text: 'Texte court',
   textarea: 'Texte long',
@@ -158,7 +159,9 @@ const BLOCK_STYLES = [
 ];
 // Valeurs proposées dans la colonne « Composant » de la table Contenus
 const COMPOSANTS = ['Paragraphe', 'Titre', 'Chapeau', 'Encadré', 'Mise en exergue', 'Information', 'Attention'];
-const TEXTLIKE = ['text', 'textarea', 'email', 'tel', 'number', 'date'];
+const TEXTLIKE = ['text', 'textarea', 'email', 'tel', 'number', 'date', 'tableselect'];
+// Cibles spéciales du préremplissage (en-tête du formulaire)
+const HEAD_TARGETS = [['__title', 'Titre du formulaire'], ['__subtitle', 'Sous-titre du formulaire'], ['__description', 'Introduction du formulaire']];
 const OPS = [
   ['eq', 'est égal à'], ['neq', 'est différent de'], ['contains', 'contient'],
   ['notEmpty', 'est renseigné'], ['empty', 'n’est pas renseigné'],
@@ -326,13 +329,27 @@ function inlineMd(s) {
 function md(src) {
   const text = String(src ?? '').replace(/\r/g, '').trim();
   if (!text) return '';
+  const UL = /^\s*[-*•]\s+/, OL = /^\s*\d+[.)]\s+/;
   return text.split(/\n\s*\n/).map(block => {
     const lines = block.split('\n');
-    if (lines.every(l => /^\s*[-*•]\s+/.test(l))) return '<ul>' + lines.map(l => '<li>' + inlineMd(esc(l.replace(/^\s*[-*•]\s+/, ''))) + '</li>').join('') + '</ul>';
-    if (lines.every(l => /^\s*\d+[.)]\s+/.test(l))) return '<ol>' + lines.map(l => '<li>' + inlineMd(esc(l.replace(/^\s*\d+[.)]\s+/, ''))) + '</li>').join('') + '</ol>';
     const h = /^(#{2,4})\s+(.*)$/.exec(lines[0]);
     if (h && lines.length === 1) return `<h${h[1].length + 1} class="fr-h6">${inlineMd(esc(h[2]))}</h${h[1].length + 1}>`;
-    return '<p>' + lines.map(l => inlineMd(esc(l))).join('<br>') + '</p>';
+    // suites de lignes : paragraphe, liste à puces ou liste numérotée
+    const out = [];
+    let kind = null, buf = [];
+    const flush = () => {
+      if (!buf.length) return;
+      if (kind === 'p') out.push('<p>' + buf.map(l => inlineMd(esc(l))).join('<br>') + '</p>');
+      else out.push(`<${kind}>` + buf.map(l => '<li>' + inlineMd(esc(l.replace(kind === 'ul' ? UL : OL, ''))) + '</li>').join('') + `</${kind}>`);
+      buf = [];
+    };
+    lines.forEach(l => {
+      const k = UL.test(l) ? 'ul' : OL.test(l) ? 'ol' : 'p';
+      if (k !== kind) { flush(); kind = k; }
+      buf.push(l);
+    });
+    flush();
+    return out.join('');
   }).join('');
 }
 const mdr = s => md(resolve(s));
@@ -380,7 +397,7 @@ function newField(type, label) {
 }
 function newLookup() {
   return { id: uid('l'), triggerFieldId: '', external: false, docId: '', tableId: '', keyColId: '', mappings: [], lock: false, mustMatch: false,
-    openColId: '', formColId: '', formColRef: '' };
+    openColId: '', formColId: '', formColRef: '', labelColId: '' };
 }
 function fixField(f) {
   if (CHOICE_TYPES.includes(f.type) && !(f.options && f.options.length)) f.options = ['Option 1', 'Option 2'];
@@ -447,16 +464,22 @@ function normalizeIncoming(f, v) {
    Accès aux données
    ===================================================================== */
 const MOCK = {
-  target: 'Inscriptions',
+  target: 'Evaluations',
   tables: {
-    Stages: {
-      id: [1, 2, 3],
-      Code: ['GRIST-01', 'API-02', 'ACCESS-03'],
-      Intitule: ['Initiation à Grist', 'Automatiser avec les API', 'Accessibilité numérique'],
-      Dates: ['12 et 13 janvier 2027', '2 février 2027', '9 mars 2027'],
-      Lieu: ['Toulouse-Auzeville', 'Montpellier', 'Visioconférence'],
-      Formulaire: ['inscription-stage', 'inscription-stage', 'inscription-stage'],
-      Inscriptions_ouvertes: [true, true, false]
+    Formations: {
+      id: [1, 2, 3, 4],
+      Code: ['NAS0EA0001', 'NAS0EA0002', 'NAS0EA0003', 'NAS0EA0004'],
+      Intitule: ['Initiation à Grist', 'Automatiser avec les API', 'Accessibilité numérique', 'Piloter un projet numérique'],
+      Dates: ['12 et 13 janvier 2027', '2 février 2027', '9 mars 2027', '6 avril 2027'],
+      Lieu: ['Toulouse-Auzeville', 'Montpellier', 'Visioconférence', 'Toulouse-Auzeville'],
+      Formateur: ['Marie Dupont', 'Paul Martin', 'Awa Diallo', 'Marie Dupont'],
+      Objectifs: [
+        'À l’issue de la formation, vous saurez :\n- créer un document et des tables ;\n- écrire des formules simples ;\n- partager un document.',
+        'À l’issue de la formation, vous saurez :\n- lire et écrire des données avec l’API ;\n- automatiser une tâche avec n8n.',
+        'À l’issue de la formation, vous saurez :\n- appliquer le RGAA aux documents ;\n- tester une page web.',
+        'À l’issue de la formation, vous saurez :\n- cadrer un projet ;\n- animer un comité de suivi.'],
+      Formulaire: ['evaluation-formation', 'evaluation-formation', 'evaluation-formation', 'evaluation-formation'],
+      Evaluation_ouverte: [true, true, true, false]
     },
     Contenus: {
       id: [1, 2, 3],
@@ -471,10 +494,10 @@ const MOCK = {
     }
   },
   schema: {
-    Stages: [['Code', 'Text'], ['Intitule', 'Text'], ['Dates', 'Text'], ['Lieu', 'Text'], ['Formulaire', 'Choice'], ['Inscriptions_ouvertes', 'Bool']],
+    Formations: [['Code', 'Text'], ['Intitule', 'Text'], ['Dates', 'Text'], ['Lieu', 'Text'], ['Formateur', 'Text'], ['Objectifs', 'Text'], ['Formulaire', 'Choice'], ['Evaluation_ouverte', 'Bool']],
     Contenus: [['Cle', 'Text'], ['Composant', 'Choice'], ['Titre', 'Text'], ['Texte', 'Text']],
-    Inscriptions: [['Code_stage', 'Text'], ['Intitule', 'Text'], ['Nom', 'Text'], ['Prenom', 'Text'], ['Email', 'Text'],
-      ['Etablissement', 'Text'], ['Hebergement', 'Choice'], ['Contraintes', 'Text'], ['Consentement', 'Bool']]
+    Evaluations: [['Code_formation', 'Text'], ['Satisfaction', 'Choice'], ['Objectifs_atteints', 'Choice'], ['Points_forts', 'Text'],
+      ['Ameliorations', 'Text'], ['Recommande', 'Choice'], ['Email', 'Text']]
   }
 };
 
@@ -624,9 +647,9 @@ function renderForm() {
     <form id="dn-form" novalidate>
       ${!(config.header && config.header.enabled) && config.logo && config.logo.src ? `<div class="dn-logo">${logoImg()}</div>` : ''}
       <div class="dn-head"><div class="dn-head__text">
-        <h1 class="fr-h2 fr-mb-2w">${title}</h1>
-        ${subtitle ? `<p class="fr-text--lead fr-mb-3w">${subtitle}</p>` : ''}
-        ${desc ? `<div class="dn-text fr-mb-3w">${desc}</div>` : ''}
+        <h1 class="fr-h2 fr-mb-2w" id="dn-title">${title}</h1>
+        <p class="fr-text--lead fr-mb-3w" id="dn-subtitle"${subtitle ? '' : ' hidden'}>${subtitle}</p>
+        <div class="dn-text fr-mb-3w" id="dn-desc"${desc ? '' : ' hidden'}>${desc}</div>
       </div>${config.showQrTop ? '<div class="dn-selfqr" id="self-qr" hidden></div>' : ''}</div>
       <p class="fr-text--sm fr-mb-4w">Les champs suivis d’un astérisque ( <span class="dn-req">*</span> ) sont obligatoires.</p>
       ${fieldsHtml}
@@ -641,6 +664,7 @@ function renderForm() {
 
   bindForm($('#dn-form'));
   applyVisibility();
+  config.fields.filter(f => f.type === 'tableselect').forEach(loadOptions);
   if (mode === 'form') applyUrlPrefill();
   updateSelfQr();
 }
@@ -666,6 +690,45 @@ function updateSelfQr() {
     box.innerHTML = `<img src="${qrPngDataUrl(url, 6)}" alt="QR code pour ouvrir ce formulaire sur un téléphone"><p>Scannez pour ouvrir ce formulaire sur votre téléphone</p>`;
     box.hidden = false;
   } catch (e) { box.hidden = true; }
+}
+
+/* ---------- liste de choix venant d’une table (avec recherche) ---------- */
+const optionSets = {};
+async function getOptions(rule) {
+  if (isRemoteRule(rule)) {
+    const api = remote ? PUBLIC_API : config.apiUrl;
+    const slug = remote ? PUBLIC_SLUG : config.slug;
+    if (!api || !slug) throw new Error('publiez le formulaire et renseignez l’adresse n8n');
+    const r = await callApi(api, { action: 'options', f: slug, rule: rule.id });
+    if (!r || r.ok === false) throw new Error((r && r.error) || 'erreur du service');
+    return r.options || [];
+  }
+  const d = await getTableData(rule.tableId);
+  const kt = colType(rule.tableId, rule.keyColId), lt = colType(rule.tableId, rule.labelColId);
+  const out = [];
+  for (const [i, k] of (d[rule.keyColId] || []).entries()) {
+    const value = String(fromGrist(k, kt) ?? '').trim();
+    if (!value) continue;
+    if (rule.openColId && d[rule.openColId] && !d[rule.openColId][i]) continue;
+    if (rule.formColId && d[rule.formColId] && config.slug && norm(await formValue(rule, d[rule.formColId][i])) !== norm(config.slug)) continue;
+    out.push({ value, label: rule.labelColId && d[rule.labelColId] ? String(fromGrist(d[rule.labelColId][i], lt) ?? '') : '' });
+  }
+  return out.sort((a, b) => a.value.localeCompare(b.value, 'fr', { numeric: true }));
+}
+async function loadOptions(f) {
+  const dl = document.getElementById('dl_' + f.id), cnt = document.getElementById('cnt_' + f.id);
+  const rule = config.lookups.find(l => l.triggerFieldId === f.id);
+  if (!dl) return;
+  if (!rule) { if (cnt) cnt.textContent = 'Aucune table associée : créez une règle de préremplissage à partir de ce champ.'; return; }
+  try {
+    const list = await getOptions(rule);
+    optionSets[f.id] = new Set(list.map(o => keyNorm(o.value)));
+    dl.innerHTML = list.map(o => `<option value="${esc(o.value)}">${esc(o.label)}</option>`).join('');
+    if (cnt) cnt.textContent = list.length ? `${list.length} choix disponible${list.length > 1 ? 's' : ''}` : 'Aucun choix disponible pour le moment.';
+  } catch (e) {
+    console.error(e);
+    if (cnt) cnt.textContent = 'La liste n’a pas pu être chargée (' + e.message + '). Vous pouvez saisir le code.';
+  }
 }
 
 /* ---------- valeur transmise par le lien (?code=…) ---------- */
@@ -697,22 +760,27 @@ function blockHtml(f) {
     body = md(plain);
     if (st === 'auto') st = 'paragraphe';
   }
+  // Bloc alimenté par la ligne choisie : masqué tant qu’il est vide
+  const fed = isMappedTarget(f.id);
+  const empty = fed && !plain.trim() ? ' data-empty="1"' : '';
+  const a = attrs + empty + ` data-style="${st}"`;
   switch (st) {
     case 'titre':
-      return `<div class="dn-block" ${attrs}><h3 class="fr-h4 fr-mb-1w">${title || esc1(plain)}</h3>${title ? `<div class="dn-text">${body}</div>` : ''}</div>`;
+      return `<div class="dn-block" ${a}><h3 class="fr-h4 fr-mb-1w dn-body">${title || esc1(plain)}</h3></div>`;
     case 'chapeau':
-      return `<div class="dn-block dn-text dn-lead" ${attrs}>${title ? `<h3 class="fr-h5">${title}</h3>` : ''}${body}</div>`;
+      return `<div class="dn-block dn-lead" ${a}>${title ? `<h3 class="fr-h5">${title}</h3>` : ''}<div class="dn-text dn-body">${body}</div></div>`;
     case 'encadre':
-      return `<div class="dn-block fr-callout" ${attrs}>${title ? `<h3 class="fr-callout__title fr-h6">${title}</h3>` : ''}<div class="fr-callout__text dn-text fr-text--md">${body}</div></div>`;
+      return `<div class="dn-block fr-callout" ${a}>${title ? `<h3 class="fr-callout__title fr-h6">${title}</h3>` : ''}<div class="fr-callout__text dn-text dn-body fr-text--md">${body}</div></div>`;
     case 'exergue':
-      return `<div class="dn-block fr-highlight dn-text" ${attrs}>${title ? `<p><strong>${title}</strong></p>` : ''}${body}</div>`;
+      return `<div class="dn-block fr-highlight" ${a}>${title ? `<p><strong>${title}</strong></p>` : ''}<div class="dn-text dn-body">${body}</div></div>`;
     case 'info':
     case 'attention':
-      return `<div class="dn-block fr-alert fr-alert--${st === 'info' ? 'info' : 'warning'}" ${attrs}>${title ? `<h3 class="fr-alert__title">${title}</h3>` : ''}<div class="dn-text">${body}</div></div>`;
+      return `<div class="dn-block fr-alert fr-alert--${st === 'info' ? 'info' : 'warning'}" ${a}>${title ? `<h3 class="fr-alert__title">${title}</h3>` : ''}<div class="dn-text dn-body">${body}</div></div>`;
     default:
-      return `<div class="dn-block dn-text" ${attrs}>${title ? `<h3 class="fr-h6 fr-mb-1w">${title}</h3>` : ''}${body}</div>`;
+      return `<div class="dn-block" ${a}>${title ? `<h3 class="fr-h6 fr-mb-1w">${title}</h3>` : ''}<div class="dn-text dn-body">${body}</div></div>`;
   }
 }
+const isMappedTarget = id => config.lookups.some(l => (l.mappings || []).some(m => m.fieldId === id));
 
 function fieldHtml(f, secNum) {
   const id = 'in_' + f.id;
@@ -729,12 +797,18 @@ function fieldHtml(f, secNum) {
       const e = f.contentKey ? entry(f.contentKey) : null;
       const lab = f.contentKey ? esc1(keyText(f.contentKey, 'titre')) : label;
       const intro = f.contentKey ? (e && e.titre ? md(e.texte) : '') : (f.hint ? mdr(f.hint) : '');
-      return `<div class="dn-block" data-fid="${f.id}"><h2 class="fr-h4 dn-section"><span class="dn-section__num">${secNum}</span>${lab}</h2>
+      return `<div class="dn-block" data-fid="${f.id}" data-style="section"><h2 class="fr-h4 dn-section"><span class="dn-section__num">${secNum}</span><span class="dn-body">${lab}</span></h2>
         ${intro ? `<div class="dn-text">${intro}</div>` : ''}</div>`;
     }
     case 'contenu':
     case 'explication':
       return blockHtml(f);
+    case 'tableselect':
+      return `<div class="dn-block fr-input-group" data-fid="${f.id}"><label class="fr-label" for="${id}">${label}${req}${hint}</label>
+        <input class="fr-input" type="text" id="${id}" name="${id}" list="dl_${f.id}" autocomplete="off" spellcheck="false"
+          placeholder="${esc(f.placeholder || 'Tapez un code ou un mot de l’intitulé…')}" aria-describedby="err_${f.id} cnt_${f.id}">
+        <datalist id="dl_${f.id}"></datalist>
+        <p class="fr-hint-text fr-mt-1w" id="cnt_${f.id}"></p>${errP}${status}</div>`;
     case 'textarea':
       return `<div class="dn-block fr-input-group" data-fid="${f.id}"><label class="fr-label" for="${id}">${label}${req}${hint}</label>
         <textarea class="fr-input" id="${id}" name="${id}" rows="5"${ph}></textarea>${errP}${status}</div>`;
@@ -874,6 +948,7 @@ async function runLookups(fieldId) {
     if (lookupLastKey[rule.id] === key && lookupState[rule.id]) continue;
     lookupLastKey[rule.id] = key;
     (prefilledBy[rule.id] || []).forEach(fid => {
+      if (isDisplayTarget(fid)) { setDisplay(fid, null); return; }
       const f = fieldById(fid);
       if (!f) return;
       setValue(f, f.type === 'checkboxes' ? [] : f.type === 'checkbox' ? false : '');
@@ -907,9 +982,8 @@ async function runLookups(fieldId) {
         }
         if (found && rule.openColId && data[rule.openColId]) closed = !data[rule.openColId][idx];
         if (found) canonical = fromGrist(data[rule.keyColId][idx], kt);
-        if (found) rule.mappings.forEach(m => {
-          if (m.fieldId && m.colId && data[m.colId]) values[m.fieldId] = fromGrist(data[m.colId][idx], colType(rule.tableId, m.colId));
-        });
+        if (found) values = groupMapped(rule.mappings.filter(m => m.fieldId && m.colId && data[m.colId])
+          .map(m => [m.fieldId, m.label || m.colId, fromGrist(data[m.colId][idx], colType(rule.tableId, m.colId))]));
       }
       if (!found) {
         lookupState[rule.id] = 'nomatch';
@@ -922,6 +996,7 @@ async function runLookups(fieldId) {
         if (canonical != null && typeof canonical !== 'object' && String(canonical).trim() && keyNorm(canonical) === key) setValue(trig, String(canonical).trim());
         let count = 0;
         Object.entries(values).forEach(([fid, v]) => {
+          if (isDisplayTarget(fid)) { setDisplay(fid, v); prefilledBy[rule.id].push(fid); return; }
           const f = fieldById(fid);
           if (!f || !isInput(f)) return;
           setValue(f, normalizeIncoming(f, v));
@@ -931,7 +1006,7 @@ async function runLookups(fieldId) {
           count++;
         });
         if (closed) messages.push(['error', 'Les inscriptions sont closes pour ce code.']);
-        else messages.push(['valid', count > 1 ? `${count} champs ont été préremplis.` : count === 1 ? '1 champ a été prérempli.' : 'Valeur reconnue.']);
+        else messages.push(['valid', count > 1 ? `${count} champs ont été préremplis.` : count === 1 ? '1 champ a été prérempli.' : 'Formulaire adapté à votre choix.']);
       }
     } catch (e) {
       console.error(e);
@@ -943,6 +1018,49 @@ async function runLookups(fieldId) {
   if (status) status.innerHTML = messages.map(([t, m]) => `<p class="fr-message fr-message--${t}">${esc(m)}</p>`).join('');
   applyVisibility();
   if (config.showQrTop) updateSelfQr();
+}
+// Plusieurs colonnes vers un même élément : une ligne « **Libellé** : valeur » par colonne
+function groupMapped(entries) {
+  const groups = {};
+  entries.forEach(([fid, label, v]) => { (groups[fid] = groups[fid] || []).push([label, v]); });
+  const out = {};
+  Object.entries(groups).forEach(([fid, arr]) => {
+    out[fid] = arr.length === 1 ? arr[0][1]
+      : arr.filter(([, v]) => !isEmpty(v)).map(([l, v]) => `**${l}** : ${displayText(v)}`).join('\n');
+  });
+  return out;
+}
+// Éléments non saisissables remplis par la ligne choisie (en-tête, sections, blocs de texte)
+function isDisplayTarget(fid) {
+  if (HEAD_TARGETS.some(t => t[0] === fid)) return true;
+  const f = fieldById(fid);
+  return !!f && !isInput(f);
+}
+function displayText(v) {
+  v = Array.isArray(v) ? (v[0] === 'L' ? v.slice(1) : v).join(', ') : v;
+  if (typeof v === 'boolean') return v ? 'Oui' : 'Non';
+  if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) return new Date(v + 'T12:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+  return v == null ? '' : String(v);
+}
+function setDisplay(fid, v) {
+  const head = { __title: 'dn-title', __subtitle: 'dn-subtitle', __description: 'dn-desc' }[fid];
+  let el, block = null, isMd = true;
+  if (head) { el = document.getElementById(head); isMd = fid === '__description'; }
+  else { block = blockOf(fieldById(fid)); el = block && $('.dn-body', block); isMd = !block || !['titre', 'section'].includes(block.dataset.style); }
+  if (!el) return;
+  if (el.dataset.orig == null) { el.dataset.orig = el.innerHTML; el.dataset.origHidden = (head ? el.hidden : block.dataset.empty === '1') ? '1' : ''; }
+  if (v == null) {
+    el.innerHTML = el.dataset.orig;
+    if (head) el.hidden = el.dataset.origHidden === '1';
+    else if (el.dataset.origHidden === '1') block.dataset.empty = '1';
+  } else {
+    const t = displayText(v);
+    el.innerHTML = isMd ? md(t) : esc1(t);
+    if (head) el.hidden = !t.trim();
+    else if (t.trim()) delete block.dataset.empty; else block.dataset.empty = '1';
+  }
+  if (fid === '__title') document.title = el.textContent.trim() || document.title;
+  applyVisibility();
 }
 // Valeur de la colonne « formulaire » (texte, choix ou référence vers la table Formulaires)
 async function formValue(rule, v) {
@@ -957,7 +1075,11 @@ const ruleBlocks = l => l.mustMatch || !!l.openColId || !!l.formColId;
 
 /* ---------- événements du formulaire ---------- */
 function bindForm(form) {
-  form.addEventListener('input', e => onFormChange(e.target));
+  form.addEventListener('input', e => {
+    onFormChange(e.target);
+    const f = fieldById(fidOf(e.target));
+    if (f && f.type === 'tableselect' && optionSets[f.id] && optionSets[f.id].has(keyNorm(e.target.value))) triggerLookups(f.id);
+  });
   form.addEventListener('change', e => {
     onFormChange(e.target);
     const fid = fidOf(e.target);
@@ -1254,7 +1376,10 @@ function fieldsTab() {
 }
 function itemLabel(f) {
   if (f.contentKey) return `${f.contentKey} — ${keyText(f.contentKey, f.type === 'section' ? 'titre' : 'texte').replace(/\s+/g, ' ').slice(0, 50)}`;
-  if (f.type === 'contenu') return f.label || String(f.hint || '').replace(/\s+/g, ' ').slice(0, 60) || '(bloc vide)';
+  if (f.type === 'contenu') {
+    const fedBy = [...new Set(config.lookups.flatMap(l => (l.mappings || []).filter(m => m.fieldId === f.id && m.colId).map(m => m.label || m.colId)))];
+    return f.label || String(f.hint || '').replace(/\s+/g, ' ').slice(0, 60) || (fedBy.length ? `alimenté par ${fedBy.join(', ')}` : '(bloc vide)');
+  }
   return f.label || '(sans libellé)';
 }
 function listItemHtml(f, i) {
@@ -1305,6 +1430,13 @@ function editorHtml(f, i) {
       if (col && col.choices.length) h += `<button type="button" class="fr-btn fr-btn--sm fr-btn--tertiary fr-mb-2w" data-act="choicesFromCol" data-id="${f.id}">Reprendre les ${col.choices.length} choix de la colonne</button>`;
     }
     if (REGEX_TYPES.includes(f.type)) h += regexHtml(f, p);
+    if (f.type === 'tableselect') {
+      const rule = config.lookups.find(l => l.triggerFieldId === f.id);
+      h += rule
+        ? `<div class="fr-callout fr-callout--sm fr-mb-3w"><p class="fr-callout__text fr-text--sm">Liste issue de la table <strong>${esc(rule.tableId || '?')}</strong>, colonne <strong>${esc(rule.keyColId || '?')}</strong>${rule.labelColId ? `, avec <strong>${esc(rule.labelColId)}</strong> en complément` : ''}. Réglages et correspondances dans l’onglet Préremplissage.</p></div>`
+        : `<div class="fr-callout fr-callout--sm fr-mb-3w"><p class="fr-callout__text fr-text--sm">Ce champ propose les valeurs d’une table Grist. Créez la règle qui indique la table et les correspondances.</p>
+           <button type="button" class="fr-btn fr-btn--sm fr-mt-1w" data-act="ruleFor" data-id="${f.id}">Créer la règle de préremplissage</button></div>`;
+    }
   }
   h += conditionHtml(f, i, p);
   return h;
@@ -1381,12 +1513,15 @@ function lookupHtml(l, i, tables) {
          ${inputCtl('Colonne « formulaire » (facultatif)', p + 'formColId', l.formColId, { placeholder: 'Formulaire', attrs: ' spellcheck="false"' })}`
       : `${selectCtl('Colonne « inscriptions ouvertes » (facultatif)', p + 'openColId', [['', '— aucune —'], ...srcCols.filter(c => c.type === 'Bool').map(c => [c.colId, c.label])], l.openColId, { hint: 'Case décochée : le code est refusé.' })}
          ${selectCtl('Colonne « formulaire » (facultatif)', p + 'formColId', [['', '— aucune —'], ...srcCols.map(c => [c.colId, c.label])], l.formColId, { hint: 'Seuls les codes rattachés à ce formulaire sont acceptés.' })}`}
+      ${ext ? inputCtl('Colonne affichée dans la liste (facultatif)', p + 'labelColId', l.labelColId, { placeholder: 'Intitule', attrs: ' spellcheck="false"' })
+        : selectCtl('Colonne affichée dans la liste (facultatif)', p + 'labelColId', [['', '— aucune —'], ...srcCols.map(c => [c.colId, c.label])], l.labelColId, { hint: 'Ex. l’intitulé, à côté du code, pour un champ « Choix dans une table ».' })}
       ${!ext && l.tableId && l.keyColId ? `<div><p class="fr-text--sm fr-mb-1w">Gestion des stages depuis Grist</p>
         <button type="button" class="fr-btn fr-btn--sm fr-btn--secondary fr-icon-settings-5-line fr-btn--icon-left" data-act="prepStages" data-i="${i}">${colsOf(l.tableId).some(c => c.colId === 'Lien') ? 'Mettre à jour la colonne Lien' : 'Ajouter Formulaire, Ouvert et Lien'}</button></div>` : ''}
     </div>
-    <p class="fr-text--sm fr-mb-1w"><strong>Champs à préremplir</strong></p>
+    <p class="fr-text--sm fr-mb-1w"><strong>Correspondances : colonne de la ligne choisie → élément du formulaire</strong></p>
+    <p class="fr-text--xs fr-mb-2w">Un bloc de texte, une section, le titre ou le sous-titre peuvent afficher une colonne de la ligne choisie : le formulaire s’adapte à la formation.</p>
     ${l.mappings.map((m, j) => `<div class="bld-map">
-      ${selectCtl('', `${p}mappings.${j}.fieldId`, [['', '— champ du formulaire —'], ...inputs.filter(f => f.id !== l.triggerFieldId).map(f => [f.id, resolve(f.label)])], m.fieldId, { aria: 'Champ du formulaire' })}
+      ${selectCtl('', `${p}mappings.${j}.fieldId`, targetOptions(l), m.fieldId, { aria: 'Élément du formulaire' })}
       <span class="fr-icon-arrow-left-line" aria-hidden="true"></span>
       ${ext ? `<div class="fr-input-group"><input class="fr-input" data-bind="${p}mappings.${j}.colId" value="${esc(m.colId)}" placeholder="Identifiant de colonne" aria-label="Colonne source" spellcheck="false"></div>`
         : selectCtl('', `${p}mappings.${j}.colId`, colOpts, m.colId, { aria: 'Colonne source' })}
@@ -1399,6 +1534,14 @@ function lookupHtml(l, i, tables) {
     ${checkCtl('Verrouiller les champs préremplis', p + 'lock', l.lock, 'L’usager ne peut pas les modifier.')}
     ${checkCtl('Bloquer l’envoi si la valeur est introuvable', p + 'mustMatch', l.mustMatch, 'Utile pour réserver le formulaire aux personnes déjà référencées. Contrôlé aussi par n8n.')}
   </div>`;
+}
+
+function targetOptions(l) {
+  const disp = f => f.type === 'contenu' ? `Bloc de texte : ${itemLabel(f)}` : `Section : ${itemLabel(f)}`;
+  return [['', '— élément du formulaire —'],
+    ...HEAD_TARGETS.map(([k, v]) => [k, v]),
+    ...config.fields.filter(f => !isInput(f)).map(f => [f.id, disp(f)]),
+    ...config.fields.filter(f => isInput(f) && f.id !== l.triggerFieldId).map(f => [f.id, `Champ : ${resolve(f.label)}`])];
 }
 
 /* ---------- onglet Publication & QR ---------- */
@@ -1648,6 +1791,11 @@ function applyBind(el) {
     const f = config.fields[+m[1]];
     if (!val) f.condition = null; else { f.condition.op = f.condition.op || 'eq'; f.condition.value = ''; }
   }
+  if ((m = /^lookups\.(\d+)\.mappings\.(\d+)\.colId$/.exec(bind))) {
+    const l = config.lookups[+m[1]], mp = l.mappings[+m[2]];
+    const c = l.external ? null : colsOf(l.tableId).find(x => x.colId === val);
+    mp.label = c ? c.label : val; mp.type = c ? c.type : '';
+  }
   if ((m = /^lookups\.(\d+)\.formColId$/.exec(bind))) {
     const l = config.lookups[+m[1]];
     const t = l.external ? '' : colType(l.tableId, val);
@@ -1787,6 +1935,13 @@ const actions = {
     if (col) f.options = col.choices.slice();
     renderBuilder();
   },
+  ruleFor: el => {
+    const l = newLookup();
+    l.triggerFieldId = el.dataset.id; l.mustMatch = true; l.lock = true;
+    config.lookups.push(l);
+    tab = 'lookups';
+    renderBuilder();
+  },
   addLookup: () => {
     const l = newLookup();
     const email = config.fields.find(f => f.type === 'email');
@@ -1803,7 +1958,7 @@ const actions = {
     let n = 0;
     config.fields.filter(f => isInput(f) && f.id !== l.triggerFieldId && !l.mappings.some(m => m.fieldId === f.id)).forEach(f => {
       const c = cols.find(c => c.colId !== l.keyColId && (labelNorm(c.label) === labelNorm(f.label) || labelNorm(c.colId) === labelNorm(f.colId) || labelNorm(c.colId) === labelNorm(f.label)));
-      if (c) { l.mappings.push({ fieldId: f.id, colId: c.colId }); n++; }
+      if (c) { l.mappings.push({ fieldId: f.id, colId: c.colId, label: c.label, type: c.type }); n++; }
     });
     notify(n ? `${n} correspondance(s) ajoutée(s).` : 'Aucune correspondance trouvée par libellé.', n ? 'success' : 'info');
     renderBuilder();
@@ -1994,36 +2149,36 @@ app.addEventListener('change', async e => {
    ===================================================================== */
 function demoConfig() {
   const F = (type, label, extra) => Object.assign(newField(type, label), extra || {});
-  const s1 = F('section', 'Votre stage');
-  const code = F('text', 'Code du stage', { required: true, colId: 'Code_stage', placeholder: 'GRIST-01',
-    hint: 'Indiqué sur votre convocation. Essayez GRIST-01, ACCESS-03 (inscriptions closes), ou ouvrez cette page avec ?code=API-02' });
-  const intitule = F('text', 'Intitulé', { colId: 'Intitule' });
-  const dates = F('text', 'Dates', {});
-  const lieu = F('text', 'Lieu', {});
-  const intro = F('contenu', '', { style: 'auto', contentKey: 'intro_inscription' });
-  const s2 = F('section', 'Vos coordonnées');
-  const nom = F('text', 'Nom', { required: true, colId: 'Nom' });
-  const prenom = F('text', 'Prénom', { required: true, colId: 'Prenom' });
-  const email = F('email', 'Adresse électronique professionnelle', { required: true, colId: 'Email', regexPreset: 'emailAgri' });
-  const etab = F('text', 'Établissement', { colId: 'Etablissement' });
-  const s3 = F('section', 'Organisation');
-  const heb = F('radio', 'Avez-vous besoin d’un hébergement ?', { required: true, colId: 'Hebergement', options: ['Oui', 'Non'] });
-  const contr = F('textarea', 'Précisez vos contraintes (dates, accessibilité…)', { colId: 'Contraintes', required: true,
-    condition: { fieldId: heb.id, op: 'eq', value: 'Oui' } });
+  const code = F('tableselect', 'Formation suivie', { required: true, colId: 'Code_formation',
+    hint: 'Choisissez dans la liste (ex. NAS0EA0001) ou tapez un mot de l’intitulé' });
+  const s1 = F('section', 'La formation');
+  const infos = F('contenu', '', { style: 'paragraphe' });
+  const objectifs = F('contenu', 'Objectifs de la formation', { style: 'encadre' });
+  const s2 = F('section', 'Votre avis');
+  const satisf = F('radio', 'Globalement, êtes-vous satisfait de cette formation ?', { required: true, colId: 'Satisfaction',
+    options: ['Très satisfait', 'Satisfait', 'Peu satisfait', 'Pas satisfait'] });
+  const obj = F('radio', 'Les objectifs présentés ci-dessus ont-ils été atteints ?', { required: true, colId: 'Objectifs_atteints',
+    options: ['Oui', 'En partie', 'Non'] });
+  const forts = F('textarea', 'Qu’avez-vous le plus apprécié ?', { colId: 'Points_forts' });
+  const amelio = F('textarea', 'Que faudrait-il améliorer ?', { colId: 'Ameliorations', required: true,
+    condition: { fieldId: satisf.id, op: 'neq', value: 'Très satisfait' } });
+  const reco = F('radio', 'Recommanderiez-vous cette formation à un collègue ?', { required: true, colId: 'Recommande', options: ['Oui', 'Non'] });
+  const email = F('email', 'Adresse électronique (facultatif, pour être recontacté)', { colId: 'Email', regexPreset: 'emailAgri' });
   const rgpd = F('contenu', '', { style: 'auto', contentKey: 'rgpd' });
-  const consent = F('checkbox', 'J’accepte que mes données soient utilisées pour l’organisation du stage', { required: true, colId: 'Consentement' });
   return normalizeConfig({
-    title: 'Inscription à un stage',
-    subtitleKey: 'sous_titre',
-    description: 'Ce formulaire permet de vous inscrire à un stage de formation.\nDurée de remplissage : **2 minutes**.',
+    title: 'Évaluation de formation',
+    subtitle: 'Choisissez la formation suivie : le questionnaire s’adapte.',
+    description: 'Vos réponses sont **anonymes** et nous aident à améliorer l’offre de formation.\nDurée : **3 minutes**.',
     header: { enabled: true, brand: 'Ministère\nde l’agriculture\net de la souveraineté\nalimentaire', serviceName: 'Formations au numérique', serviceTagline: 'DRAAF Occitanie' },
     contentSource: { tableId: 'Contenus', keyColId: 'Cle', textColId: 'Texte', titleColId: 'Titre', compColId: 'Composant' },
-    fields: [s1, code, intitule, dates, lieu, intro, s2, nom, prenom, email, etab, s3, heb, contr, rgpd, consent],
-    lookups: [{ id: uid('l'), triggerFieldId: code.id, tableId: 'Stages', keyColId: 'Code', lock: true, mustMatch: true,
-      openColId: 'Inscriptions_ouvertes', formColId: 'Formulaire',
-      mappings: [{ fieldId: intitule.id, colId: 'Intitule' }, { fieldId: dates.id, colId: 'Dates' }, { fieldId: lieu.id, colId: 'Lieu' }] }],
-    urlField: code.id, urlParam: 'code', urlLock: true, urlLabelColId: 'Intitule', showQrTop: true,
-    slug: 'inscription-stage', publicUrl: 'https://exemple.github.io/formulaires/', apiUrl: 'https://n8n.exemple.gouv.fr/webhook/formulaire-dsfr'
+    fields: [code, s1, infos, objectifs, s2, satisf, obj, forts, amelio, reco, email, rgpd],
+    lookups: [{ id: uid('l'), triggerFieldId: code.id, tableId: 'Formations', keyColId: 'Code', labelColId: 'Intitule', lock: true, mustMatch: true,
+      openColId: 'Evaluation_ouverte', formColId: 'Formulaire',
+      mappings: [{ fieldId: '__title', colId: 'Intitule', label: 'Intitulé' }, { fieldId: infos.id, colId: 'Dates', label: 'Dates' },
+        { fieldId: infos.id, colId: 'Lieu', label: 'Lieu' }, { fieldId: infos.id, colId: 'Formateur', label: 'Formateur' },
+        { fieldId: objectifs.id, colId: 'Objectifs', label: 'Objectifs' }] }],
+    urlField: code.id, urlParam: 'code', urlLock: true, urlLabelColId: 'Intitule', showQrTop: false,
+    slug: 'evaluation-formation', publicUrl: 'https://jlllyfish.github.io/sparrow-widget-form-dsfr/', apiUrl: 'https://n8n.exemple.gouv.fr/webhook/formulaire-dsfr'
   });
 }
 

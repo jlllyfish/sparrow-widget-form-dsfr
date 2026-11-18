@@ -12,6 +12,11 @@ Pour activer GitHub Pages : **Settings → Pages → Build and deployment**, cho
 
 Les pages ne dépendent d'aucun site externe : le DSFR (v1.12.1, polices et icônes) et la bibliothèque de QR code sont inclus dans le dossier `vendor/`. Dans Grist, l'API des widgets est chargée depuis l'instance Grist elle-même, avec docs.getgrist.com en secours.
 
+## Principe : un formulaire qui s'adapte à la formation choisie
+1. L'usager choisit la formation dans une **liste avec recherche** : il tape « NAS0 » ou un mot de l'intitulé. Avec un lien ou un QR code par formation, le code est déjà rempli.
+2. La ligne de cette formation, dans une table Grist, remplit les **éléments non saisissables** du formulaire : titre, sous-titre, sections et blocs de texte (dates, lieu, formateur, objectifs…).
+3. Les questions d'évaluation suivent. La réponse est enregistrée avec le code de la formation.
+
 ## Mise en place
 
 Trois fichiers :
@@ -40,7 +45,7 @@ Pour obtenir des liens plus courts, inscrivez l'URL du webhook n8n dans la const
 ## 2. Ajouter le widget dans Grist
 1. Sur la page qui contient la table des réponses, ajoutez un widget **Personnalisé**.
 2. Saisissez l'URL de `index.html` (adresse GitHub Pages ci-dessus), choisissez l'accès **complet** au document, puis cliquez sur « Ouvrir la configuration ».
-3. Onglet **Contenus** : cliquez sur « Créer la table Contenus », ou choisissez une table existante. Cette table contient une ligne par texte, avec quatre colonnes :
+3. Onglet **Contenus** (facultatif) : il sert pour les textes **identiques pour toutes les formations** (mention RGPD, consigne…), que l'on veut modifier dans Grist sans rouvrir le widget. Cliquez sur « Créer la table Contenus », ou choisissez une table existante. Cette table contient une ligne par texte, avec quatre colonnes :
    - **Cle** : un nom court et unique ;
    - **Composant** : la présentation DSFR (Paragraphe, Titre, Chapeau, Encadré, Mise en exergue, Information ou Attention) ;
    - **Titre** : facultatif ;
@@ -48,10 +53,14 @@ Pour obtenir des liens plus courts, inscrivez l'URL du webhook n8n dans la const
 
    Dans l'onglet Champs, ajoutez un « Bloc de texte » et choisissez l'entrée dans la liste : il s'affiche avec le composant indiqué dans la table.
 4. Onglet **Général** : titre, sous-titre, introduction, logo et en-tête de l'État (bloc-marque). Le titre, le sous-titre et l'introduction peuvent être saisis directement ou choisis dans la table Contenus.
-5. Onglet **Champs** : importez les colonnes de la table, puis ajoutez les sections, les blocs de texte et les conditions d'affichage.
+5. Onglet **Champs** :
+   - ajoutez un champ **« Choix dans une table (liste avec recherche) »** pour le code de la formation, et reliez-le à la colonne du code dans la table des réponses ;
+   - ajoutez les sections et les **blocs de texte** qui recevront les informations de la formation (laissez leur texte vide : ils restent masqués tant qu'aucune formation n'est choisie) ;
+   - ajoutez les questions et leurs conditions d'affichage.
 6. Onglet **Préremplissage** :
-   - créez une règle « quand le Code du stage est renseigné, chercher dans la table Stages, colonne Code » ;
-   - associez les colonnes Intitulé, Dates, Lieu… aux champs du formulaire ;
+   - créez une règle « quand le champ Formation est renseigné, chercher dans la table des formations, colonne Code » ;
+   - **Colonne affichée dans la liste** : l'intitulé, pour qu'il apparaisse à côté du code ;
+   - **Correspondances** : pour chaque colonne de la ligne (Intitulé, Dates, Objectifs…), choisissez l'élément du formulaire qui l'affiche : titre ou sous-titre du formulaire, section, bloc de texte, ou champ à préremplir. Si plusieurs colonnes vont dans le même bloc, il les affiche ligne par ligne (« **Dates** : … ») ;
    - cochez « Bloquer l'envoi si la valeur est introuvable ».
 
    Le bouton **Ajouter Formulaire, Ouvert et Lien** complète ensuite la table Stages avec trois colonnes :
@@ -79,7 +88,7 @@ Il ouvre ou ferme lui-même les inscriptions en cochant ou décochant la case de
    - nom : `Authorization` ;
    - valeur : `Bearer <votre clé API Grist>`.
 
-   Sélectionnez-la dans les 5 nœuds HTTP du workflow.
+   Sélectionnez-la dans les 6 nœuds HTTP du workflow.
 3. Dans le nœud **Paramètres**, renseignez l'URL de Grist et l'identifiant du document qui contient les tables Formulaires, Contenus et la table des réponses.
 4. Activez le workflow et copiez l'**URL de production** du nœud Webhook.
 
@@ -104,7 +113,8 @@ Dans le widget, onglet **Publication & QR code** :
 
 ## Ce que fait le relais n8n
 - **config** : renvoie le formulaire sans aucun détail interne (ni colonnes, ni tables, ni documents). Seules les entrées de la table Contenus utilisées par le formulaire sont envoyées, avec leur composant et leur titre.
-- **lookup** : renvoie uniquement les champs préremplis de la ligne trouvée. La comparaison ignore la casse et les espaces. Il est impossible de télécharger la table entière. Il signale aussi si les inscriptions sont closes, et ignore les stages rattachés à un autre formulaire.
+- **options** : renvoie la liste des codes (et intitulés) proposés dans le champ « Choix dans une table ». Seules les formations rattachées au formulaire et ouvertes y figurent.
+- **lookup** : renvoie uniquement les éléments à afficher ou préremplir pour la ligne choisie. La comparaison ignore la casse et les espaces. Il est impossible de télécharger la table entière. Il signale aussi si les inscriptions sont closes, et ignore les stages rattachés à un autre formulaire.
 - **submit** : refait côté serveur toutes les vérifications du navigateur : champs obligatoires, expressions régulières, conditions, options proposées, et code stage existant, rattaché à ce formulaire et ouvert. Les champs masqués sont ignorés, ainsi que les colonnes non prévues. Un champ piège invisible bloque les robots.
 
 Si le navigateur affiche une erreur CORS, vérifiez l'option *Allowed Origins (CORS)* du nœud Webhook. Elle vaut `*` par défaut ; vous pouvez y mettre l'adresse de votre page publique.
