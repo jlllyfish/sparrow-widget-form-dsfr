@@ -381,7 +381,7 @@ function defaultConfig() {
     fields: [], lookups: [],
     slug: '', apiUrl: '', publicUrl: '', qrMode: 'autonome', qrUrl: '',
     responsesDocId: '', responsesTableId: '',
-    urlField: '', urlParam: 'code', urlLock: true, urlLabelColId: '', urlCodes: '', showQrTop: false, targetTableId: ''
+    urlField: '', urlParam: 'code', urlLock: true, urlLabelColId: '', urlCodes: '', showQrTop: false, targetTableId: '', foundMessage: 'Référence stage trouvée.'
   };
 }
 function newField(type, label) {
@@ -686,12 +686,13 @@ async function loadOptions(f) {
   const dl = document.getElementById('dl_' + f.id), cnt = document.getElementById('cnt_' + f.id);
   const rule = config.lookups.find(l => l.triggerFieldId === f.id);
   if (!dl) return;
+  if (codeFromLink(f)) { dl.remove(); const inp = document.getElementById('in_' + f.id); if (inp) inp.removeAttribute('list'); if (cnt) cnt.remove(); return; }
   if (!rule) { if (cnt) cnt.textContent = 'Aucune table associée : créez une règle de préremplissage à partir de ce champ.'; return; }
   try {
     const list = await getOptions(rule);
     optionSets[f.id] = new Set(list.map(o => keyNorm(o.value)));
     dl.innerHTML = list.map(o => `<option value="${esc(o.value)}">${esc(o.label)}</option>`).join('');
-    if (cnt) cnt.textContent = list.length ? `${list.length} choix disponible${list.length > 1 ? 's' : ''}` : 'Aucun choix disponible pour le moment.';
+    if (cnt) cnt.textContent = list.length ? '' : 'Aucun choix disponible pour le moment.';
   } catch (e) {
     console.error(e);
     if (cnt) cnt.textContent = 'La liste n’a pas pu être chargée (' + e.message + '). Vous pouvez saisir le code.';
@@ -699,6 +700,8 @@ async function loadOptions(f) {
 }
 
 /* ---------- valeur transmise par le lien (?code=…) ---------- */
+// Champ rempli et verrouillé par le lien du stage : on n’affiche pas la liste des autres stages
+const codeFromLink = f => mode === 'form' && config.urlLock && f.id === config.urlField && !!String(URLP.get(urlParamName()) || '').trim();
 const urlParamName = () => { const n = config.urlParam || 'code'; return ['f', 'api'].includes(n) ? 'code' : n; };
 function applyUrlPrefill() {
   const f = fieldById(config.urlField);
@@ -760,7 +763,7 @@ function fieldHtml(f, secNum) {
     case 'explication':
       return blockHtml(f);
     case 'tableselect':
-      return `<div class="dn-block fr-input-group" data-fid="${f.id}"><label class="fr-label" for="${id}">${label}${req}${hint}</label>
+      return `<div class="dn-block fr-input-group" data-fid="${f.id}"><label class="fr-label" for="${id}">${label}${req}${codeFromLink(f) ? '' : hint}</label>
         <input class="fr-input" type="text" id="${id}" name="${id}" list="dl_${f.id}" autocomplete="off" spellcheck="false"
           placeholder="${esc(f.placeholder || 'Tapez un code ou un mot de l’intitulé…')}" aria-describedby="err_${f.id} cnt_${f.id}">
         <datalist id="dl_${f.id}"></datalist>
@@ -969,7 +972,7 @@ async function runLookups(fieldId) {
           count++;
         });
         if (closed) messages.push(['error', 'Les inscriptions sont closes pour ce code.']);
-        else messages.push(['valid', count > 1 ? `${count} champs ont été préremplis.` : count === 1 ? '1 champ a été prérempli.' : 'Formulaire adapté à votre choix.']);
+        else messages.push(['valid', [config.foundMessage || 'Référence trouvée.', count > 1 ? `${count} champs ont été préremplis.` : count === 1 ? '1 champ a été prérempli.' : ''].filter(Boolean).join(' ')]);
       }
     } catch (e) {
       console.error(e);
@@ -1468,6 +1471,7 @@ function lookupHtml(l, i, tables) {
     ${step(3, 'Contrôles (facultatif)')}
     ${checkCtl('Refuser un code qui n’existe pas dans la table', p + 'mustMatch', l.mustMatch, 'Contrôlé aussi par n8n au moment de l’envoi.')}
     ${checkCtl('Empêcher l’usager de modifier les champs préremplis', p + 'lock', l.lock)}
+    ${i === 0 ? inputCtl('Message quand le code est trouvé', 'foundMessage', config.foundMessage, { placeholder: 'Référence stage trouvée.' }) : ''}
     <div class="bld-row3">
       ${colSel(p + 'openColId', l.openColId, '— aucune —', { label: 'Colonne « ouvert / fermé »', ph: 'Inscriptions_ouvertes', cols: srcCols.filter(c => c.type === 'Bool'), hint: 'Facultatif. Cochée par défaut sur chaque nouvelle ligne ; décochée : le formulaire est fermé pour ce code.' })}
       ${colSel(p + 'formColId', l.formColId, '— aucune —', { label: 'Colonne « formulaire »', ph: 'Formulaire', hint: 'Inutile avec un seul formulaire. Seulement si plusieurs formulaires différents utilisent la même table.' })}
@@ -1985,15 +1989,26 @@ async function ensureResponseTable() {
     }
   });
   if (acts.length) {
-    const res = await grist.docApi.applyUserActions(acts);
+    let rets = null; const fails = [];
+    try { const res = await grist.docApi.applyUserActions(acts); rets = res && res.retValues ? res.retValues : []; }
+    catch (e) {
+      // repli : une action à la fois, pour savoir laquelle Grist refuse
+      console.warn('Ajout groupé refusé, essai colonne par colonne', e);
+      rets = [];
+      for (const a of acts) {
+        try { const r = await grist.docApi.applyUserActions([a]); rets.push(r && r.retValues ? r.retValues[0] : null); }
+        catch (e2) { rets.push(undefined); fails.push(`${a[2]} : ${e2.message || e2}`); }
+      }
+    }
     let k = 0;
     acts.forEach((a, i) => {
       if (a[0] !== 'AddColumn') return;
-      const rv = res && res.retValues ? res.retValues[i] : null;
-      targets[k][0].colId = (rv && rv.colId) || targets[k][1];
+      const rv = rets[i];
+      if (rv !== undefined) targets[k][0].colId = (rv && rv.colId) || targets[k][1];
       k++;
     });
     await loadSchema();
+    if (fails.length) throw new Error(`Grist a refusé ${fails.length} colonne(s) — ${fails.join(' ; ')}`);
   }
   return { created, added: targets.length };
 }
@@ -2276,7 +2291,7 @@ const actions = {
       const r = await ensureResponseTable();
       await saveOptions();
       notify(r.created ? `Table « ${targetTableId} » créée avec ${r.added} colonne(s).` : r.added ? `${r.added} colonne(s) ajoutée(s) à « ${targetTableId} ».` : 'La table est déjà à jour.', 'success');
-    } catch (e) { console.error(e); notify('Création impossible : ' + (e.message || e), 'error'); }
+    } catch (e) { console.error(e); notify('Création impossible : ' + (e.message || e), 'error'); try { await saveOptions(); } catch (_) { /* ignore */ } }
     renderBuilder();
   },
   wizCancel: () => { wiz = null; mode = 'builder'; renderBuilder(); },
