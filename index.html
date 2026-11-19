@@ -387,7 +387,7 @@ function defaultConfig() {
 function newField(type, label) {
   const f = {
     id: uid('f'), type, label: label ?? TYPES[type], hint: '', placeholder: '', colId: '', style: 'paragraphe',
-    required: false, noSave: false, options: [], layout: '', regexPreset: 'none', regex: '', regexMessage: '', condition: null
+    required: false, noSave: false, hiddenField: false, options: [], layout: '', regexPreset: 'none', regex: '', regexMessage: '', condition: null
   };
   if (type === 'contenu' && label == null) f.label = '';
   fixField(f);
@@ -874,7 +874,7 @@ function applyVisibility() {
   config.fields.forEach(f => {
     const b = blockOf(f);
     if (!b) return;
-    b.hidden = !vis[f.id] || b.dataset.empty === '1';
+    b.hidden = !vis[f.id] || b.dataset.empty === '1' || (!!f.hiddenField && f.type === 'text');
     if (!vis[f.id] && isInput(f)) showError(f, '');
   });
   return vis;
@@ -969,7 +969,7 @@ async function runLookups(fieldId) {
           showError(f, '');
           if (rule.lock) setLocked(f, true);
           prefilledBy[rule.id].push(f.id);
-          count++;
+          if (!f.hiddenField) count++;
         });
         if (closed) messages.push(['error', 'Les inscriptions sont closes pour ce code.']);
         else messages.push(['valid', [config.foundMessage || 'Référence trouvée.', count > 1 ? `${count} champs ont été préremplis.` : count === 1 ? '1 champ a été prérempli.' : ''].filter(Boolean).join(' ')]);
@@ -1309,6 +1309,7 @@ function listItemHtml(f, i) {
   const flags = [];
   if (f.type === 'contenu') flags.push((BLOCK_STYLES.find(s => s[0] === f.style) || BLOCK_STYLES[0])[1].toLowerCase());
   if (isMappedTarget(f.id)) flags.push('rempli par la ligne choisie');
+  if (f.hiddenField && f.type === 'text') flags.push('caché');
   if (f.required) flags.push('obligatoire');
   if (f.condition && f.condition.fieldId) flags.push('conditionnel');
   if (config.lookups.some(l => l.triggerFieldId === f.id)) flags.push('déclenche un préremplissage');
@@ -1349,7 +1350,8 @@ function editorHtml(f, i) {
       { hint: targetTableId ? `Table ${esc(targetTableId)}` : `Table créée à la publication : ${esc(autoTableName())}` });
     if (col && /^Ref/.test(col.type)) h += '<p class="fr-message fr-message--warning fr-mb-2w">Les colonnes de type Référence ne sont pas gérées : utilisez une colonne Texte.</p>';
     if (f.colId && config.fields.some(o => o !== f && o.colId === f.colId)) h += '<p class="fr-message fr-message--warning fr-mb-2w">Un autre champ écrit déjà dans cette colonne.</p>';
-    h += checkCtl('Champ obligatoire', p + 'required', f.required);
+    if (f.type === 'text') h += checkCtl('Champ caché', p + 'hiddenField', f.hiddenField, 'Invisible pour l’usager : rempli par la ligne choisie (onglet 2), puis enregistré dans les réponses. Ex. : l’intitulé du stage.');
+    if (!f.hiddenField) h += checkCtl('Champ obligatoire', p + 'required', f.required);
     if (['text', 'textarea', 'email', 'tel', 'number'].includes(f.type)) h += inputCtl('Exemple de saisie (placeholder)', p + 'placeholder', f.placeholder);
     if (['radio', 'checkboxes', 'yesno'].includes(f.type)) {
       h += selectCtl('Disposition des choix', p + 'layout', [['', 'Une colonne'], ['2', 'Deux colonnes'], ['3', 'Trois colonnes'], ['inline', 'Sur une ligne']],
@@ -1411,6 +1413,30 @@ function conditionHtml(f, i, p) {
 }
 
 /* ---------- onglet Préremplissage ---------- */
+// Le code et l’intitulé de la ligne choisie sont-ils enregistrés avec chaque réponse ?
+function stageSaved(l) {
+  const trig = fieldById(l.triggerFieldId);
+  const codeOk = trig && !trig.noSave;
+  const labOk = !l.labelColId || l.mappings.some(m => m.colId === l.labelColId && (fieldById(m.fieldId) || {}).hiddenField);
+  return { codeOk, labOk };
+}
+function saveStageHtml(l, i) {
+  const { codeOk, labOk } = stageSaved(l);
+  if (codeOk && labOk) return `<p class="fr-text--sm fr-mb-4w"><span class="fr-icon-check-line fr-icon--sm" aria-hidden="true"></span> Le code${l.labelColId ? ' et l’intitulé' : ''} de la ligne choisie sont enregistrés avec chaque réponse.</p>`;
+  return `<div class="fr-alert fr-alert--info fr-alert--sm fr-mb-4w"><p>Les réponses n’enregistrent pas encore ${!codeOk ? 'le code' : ''}${!codeOk && !labOk ? ' ni ' : ''}${!labOk ? 'l’intitulé' : ''} de la ligne choisie.</p>
+    <button type="button" class="fr-btn fr-btn--sm fr-mt-1w" data-act="saveStage" data-i="${i}">Les enregistrer dans les réponses</button></div>`;
+}
+function addStageLabelField(l) {
+  const trig = fieldById(l.triggerFieldId);
+  if (trig && trig.noSave) { trig.noSave = false; trig.colId = ''; }
+  if (!l.labelColId || stageSaved(l).labOk) return;
+  const c = colsOf(l.tableId).find(x => x.colId === l.labelColId) || { label: l.labelColId, type: '' };
+  const f = newField('text', c.label || 'Intitulé');
+  f.hiddenField = true;
+  const k = config.fields.findIndex(x => x.id === l.triggerFieldId);
+  config.fields.splice(k >= 0 ? k + 1 : config.fields.length, 0, f);
+  l.mappings.push({ fieldId: f.id, colId: l.labelColId, label: c.label, type: c.type });
+}
 function lookupsTab() {
   const tables = Object.keys(schema).sort();
   if (!config.lookups.length) {
@@ -1467,6 +1493,8 @@ function lookupHtml(l, i, tables) {
       <button type="button" class="fr-btn fr-btn--sm fr-btn--secondary fr-icon-add-line fr-btn--icon-left" data-act="addMap" data-i="${i}">Ajouter une correspondance</button>
       ${ext ? '' : `<button type="button" class="fr-btn fr-btn--sm fr-btn--tertiary fr-icon-refresh-line fr-btn--icon-left" data-act="autoMap" data-i="${i}"${l.tableId ? '' : ' disabled'}>Associer automatiquement (mêmes libellés)</button>`}
     </div>
+
+    ${!ext && l.tableId && l.keyColId ? saveStageHtml(l, i) : ''}
 
     ${step(3, 'Contrôles (facultatif)')}
     ${checkCtl('Refuser un code qui n’existe pas dans la table', p + 'mustMatch', l.mustMatch, 'Contrôlé aussi par n8n au moment de l’envoi.')}
@@ -1776,6 +1804,7 @@ function applyBind(el) {
   if (bind === 'targetTableId') targetTableId = val || '';
   let m;
   if ((m = /^fields\.(\d+)\.type$/.exec(bind))) fixField(config.fields[+m[1]]);
+  if ((m = /^fields\.(\d+)\.hiddenField$/.exec(bind)) && val) config.fields[+m[1]].required = false;
   if ((m = /^lookups\.(\d+)\.mappings\.(\d+)\.colId$/.exec(bind))) {
     const l = config.lookups[+m[1]], mp = l.mappings[+m[2]];
     const c = l.external ? null : colsOf(l.tableId).find(x => x.colId === val);
@@ -1968,7 +1997,10 @@ async function ensureResponseTable() {
     const want = t || autoTableName();
     const res = await grist.docApi.applyUserActions([['AddTable', want,
       [{ id: 'Recu_le', type: 'DateTime:Europe/Paris', isFormula: false, formula: 'NOW()' }]]]);
-    t = (res && res.retValues && res.retValues[0] && res.retValues[0].table_id) || want;
+    const rv = res && res.retValues && res.retValues[0];
+    t = (rv && rv.table_id) || want;
+    // page dédiée, pour que la table soit visible ailleurs que dans « Données brutes »
+    if (rv && rv.id) { try { await grist.docApi.applyUserActions([['CreateViewSection', rv.id, 0, 'record', null, null]]); } catch (e) { console.warn('Page non créée', e); } }
     await loadSchema();
   }
   config.targetTableId = t; targetTableId = t;
@@ -2171,10 +2203,17 @@ function wizBuildConfig() {
         maps.push({ fieldId: b.id, colId: cid, label: c.label, type: c.type });
       });
     }
-    lookups.push(Object.assign(newLookup(), { triggerFieldId: code.id, tableId: w.table, keyColId: w.keyCol, labelColId: w.labelCol,
-      openColId: w.openCol, mustMatch: true, lock: true, mappings: maps }));
+    const rule = Object.assign(newLookup(), { triggerFieldId: code.id, tableId: w.table, keyColId: w.keyCol, labelColId: w.labelCol,
+      openColId: w.openCol, mustMatch: true, lock: true, mappings: maps });
+    lookups.push(rule);
   }
   fields.push(...TEMPLATES[w.template].build(F));
+  if (lookups[0] && w.labelCol) {
+    const c = colsOf(w.table).find(x => x.colId === w.labelCol) || { label: w.labelCol, type: '' };
+    const lab = F('text', c.label, { hiddenField: true });
+    fields.splice(1, 0, lab);
+    lookups[0].mappings.push({ fieldId: lab.id, colId: w.labelCol, label: c.label, type: c.type });
+  }
   if (w.template !== 'vide') fields.push(F('contenu', 'Vos données', { style: 'info', hint: 'Vos réponses sont utilisées uniquement pour améliorer nos formations.' }));
   return normalizeConfig(Object.assign({
     title: w.title.trim(), slug: w.slug, fields, lookups, urlField, targetTableId: '',
@@ -2258,6 +2297,11 @@ const actions = {
     renderBuilder();
   },
   logoRemove: () => { config.logo.src = ''; renderBuilder(); },
+  saveStage: el => {
+    addStageLabelField(config.lookups[+el.dataset.i]);
+    notify('C’est prêt : cliquez sur « Publier » pour créer les colonnes dans la table des réponses.', 'success');
+    renderBuilder();
+  },
   newForm: () => {
     if (formsList.length && !confirm('Un seul formulaire suffit pour toutes les formations : chaque nouvelle ligne de la table des formations reçoit automatiquement son lien et son QR code.\n\nCréer quand même un formulaire différent (autres questions) ?')) return;
     if (isDirty() && !confirm('Des modifications ne sont pas enregistrées. Continuer ?')) return;
