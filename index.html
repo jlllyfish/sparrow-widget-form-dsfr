@@ -352,6 +352,7 @@ const lookupCache = {};
 const prefilledBy = {};
 const lookupState = {};
 const lookupLastKey = {};
+const lookupErr = {};   // ruleId -> message d’erreur du service (≠ code introuvable)
 const pendingLookups = {};
 const app = $('#app');
 
@@ -903,6 +904,7 @@ async function runLookups(fieldId) {
     });
     prefilledBy[rule.id] = [];
     lookupState[rule.id] = '';
+    delete lookupErr[rule.id];
     if (!key) continue;
 
     if (status) status.innerHTML = '<p class="fr-message fr-message--info">Recherche en cours…</p>';
@@ -959,6 +961,7 @@ async function runLookups(fieldId) {
       console.error(e);
       lookupState[rule.id] = 'nomatch';
       lookupLastKey[rule.id] = '';
+      lookupErr[rule.id] = e.message;
       messages.push(['error', 'Le préremplissage est indisponible (' + e.message + ').']);
     }
   }
@@ -1073,7 +1076,8 @@ async function onSubmit(e) {
   config.lookups.forEach(l => {
     const f = fieldById(l.triggerFieldId);
     if (!f || !vis[f.id] || isEmpty(values[f.id]) || errors[f.id]) return;
-    if (lookupState[l.id] === 'closed') errors[f.id] = 'Les inscriptions sont closes pour ce code.';
+    if (lookupErr[l.id]) errors[f.id] = 'Ce code n’a pas pu être vérifié (' + lookupErr[l.id] + '). Réessayez dans quelques instants.';
+    else if (lookupState[l.id] === 'closed') errors[f.id] = 'Les inscriptions sont closes pour ce code.';
     else if (ruleBlocks(l) && lookupState[l.id] !== 'match') errors[f.id] = 'Cette valeur est introuvable. Vérifiez votre saisie.';
   });
   if (Object.keys(errors).length) { showFormErrors(errors); return; }
@@ -1140,7 +1144,7 @@ function showSuccess(rowId, record) {
   window.scrollTo(0, 0);
 }
 function resetFormState() {
-  [prefilledBy, lookupState, lookupLastKey].forEach(o => Object.keys(o).forEach(k => delete o[k]));
+  [prefilledBy, lookupState, lookupLastKey, lookupErr].forEach(o => Object.keys(o).forEach(k => delete o[k]));
 }
 
 /* =====================================================================
@@ -1965,6 +1969,15 @@ const actions = {
         if (o && o.ok) add(n > 0, `${n} choix proposé(s) dans la liste « ${resolve(fieldById(rule.triggerFieldId).label)} ».`
           + (n ? '' : ` Vérifiez dans la table ${rule.tableId} que la colonne du code est remplie${rule.formColId ? `, que la colonne « ${rule.formColId} » contient « ${config.slug} »` : ''}${rule.openColId ? ` et que la case « ${rule.openColId} » est cochée` : ''}.`));
         else add(false, 'Liste de choix : ' + ((o && o.error) || 'erreur'));
+        if (o && o.ok && n) {
+          const code = o.options[0].value;
+          try {
+            const lk = await callApi(api, { action: 'lookup', f: config.slug, rule: rule.id, value: code });
+            if (!lk || lk.ok === false) add(false, `Préremplissage avec « ${code} » : ${(lk && lk.error) || 'erreur du service'}`);
+            else if (!lk.found) add(false, `Préremplissage avec « ${code} » : code non retrouvé par la recherche, alors qu’il figure dans la liste.`);
+            else add(true, `Préremplissage testé avec « ${code} » : ${Object.keys(lk.fields || {}).length} élément(s) rempli(s)${lk.closed ? ' (formation signalée close)' : ''}.`);
+          } catch (e) { add(false, `Préremplissage avec « ${code} » : ${e.message}`); }
+        }
         if (o && o.ok && !n) {
           const d = await callApi(api, { action: 'diag', f: config.slug, rule: rule.id }).catch(() => null);
           const g = d && d.ok && d.diag;
