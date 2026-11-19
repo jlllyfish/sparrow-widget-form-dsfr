@@ -19,7 +19,13 @@
   .dn-logo{margin-bottom:1.5rem}
   .dn-head{display:flex;gap:1.5rem;align-items:flex-start;justify-content:space-between}
   .dn-head__text{flex:1;min-width:0}
-  .dn-selfqr{flex:0 0 auto;text-align:center;width:9.5rem;padding:.5rem;border:1px solid var(--border-default-grey)}
+  .dn-selfqr{flex:0 0 auto;text-align:center;width:9.5rem}
+  .dn-selfqr__btn{display:block;margin:0 auto;padding:0;border:0;background:none;cursor:zoom-in}
+  .dn-selfqr__btn:focus-visible{outline:2px solid #0a76f6;outline-offset:2px}
+  .dn-qrzoom{border:0;padding:2rem 1.5rem 1.5rem;max-width:calc(100vw - 2rem);text-align:center;background:var(--background-default-grey);color:var(--text-default-grey)}
+  .dn-qrzoom::backdrop{background:rgba(22,22,22,.64)}
+  .dn-qrzoom img{width:min(70vmin,32rem);height:auto;image-rendering:pixelated;display:block;margin:0 auto 1rem}
+  .dn-qrzoom .fr-btn--close{position:absolute;top:.5rem;right:.5rem}
   .dn-selfqr img{width:8.5rem;height:8.5rem;image-rendering:pixelated;display:block;margin:0 auto}
   .dn-selfqr p{font-size:.75rem;line-height:1.1rem;margin:.4rem 0 0;color:var(--text-mention-grey)}
   @media (max-width:576px){.dn-selfqr{display:none}}
@@ -932,9 +938,28 @@ function updateSelfQr() {
   const url = selfQrUrl();
   if (!url) { box.hidden = true; return; }
   try {
-    box.innerHTML = `<img src="${qrPngDataUrl(url, 6)}" alt="QR code pour ouvrir ce formulaire sur un téléphone"><p>Scannez pour ouvrir ce formulaire sur votre téléphone</p>`;
+    box.innerHTML = `<button type="button" class="dn-selfqr__btn" data-act="qrZoom" title="Agrandir le QR code">
+      <img src="${qrPngDataUrl(url, 6)}" alt="QR code pour ouvrir ce formulaire sur un téléphone (cliquer pour l’agrandir)"></button>
+      <p>Scannez pour ouvrir ce formulaire sur votre téléphone</p>`;
     box.hidden = false;
   } catch (e) { box.hidden = true; }
+}
+
+// QR code agrandi (clic sur le QR code du haut) : fenêtre native <dialog>, fermée par Échap, le bouton ou un clic à côté
+function qrZoom() {
+  const url = selfQrUrl();
+  if (!url) return;
+  let d = document.getElementById('dn-qrzoom');
+  if (!d) {
+    d = document.createElement('dialog');
+    d.id = 'dn-qrzoom'; d.className = 'dn-qrzoom'; d.setAttribute('aria-labelledby', 'dn-qrzoom-t');
+    d.addEventListener('click', e => { if (e.target === d || e.target.closest('[data-close]')) d.close(); });
+    document.body.appendChild(d);
+  }
+  d.innerHTML = `<button type="button" class="fr-btn--close fr-btn" data-close title="Fermer">Fermer</button>
+    <img src="${qrPngDataUrl(url, 16)}" alt="QR code pour ouvrir ce formulaire sur un téléphone">
+    <p class="fr-h5 fr-mb-0" id="dn-qrzoom-t">Scannez pour ouvrir ce formulaire sur votre téléphone</p>`;
+  if (typeof d.showModal === 'function') d.showModal(); else d.setAttribute('open', '');
 }
 
 /* ---------- liste de choix venant d’une table (avec recherche) ---------- */
@@ -2770,6 +2795,7 @@ const actions = {
     loadContents().then(render);
   },
   preview: () => { mode = 'preview'; resetFormState(); renderForm(); window.scrollTo(0, 0); },
+  qrZoom: () => qrZoom(),
   stepNext: () => stepNext(),
   stepPrev: () => stepPrev(),
   stepGoto: el => { histPush(el.dataset.key); stepReturnRecap = true; showStep(el.dataset.key, -1); },
