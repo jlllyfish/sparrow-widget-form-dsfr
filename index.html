@@ -517,7 +517,7 @@ async function loadSchema() {
       try { wo = JSON.parse(cols.widgetOptions[i] || '{}'); } catch (e) { /* ignore */ }
       s[t].push({
         colId, label: cols.label[i] || colId, type: cols.type[i],
-        isFormula: !!cols.isFormula[i] && !!cols.formula[i],
+        isFormula: !!cols.isFormula[i] && !!cols.formula[i], formula: cols.formula[i] || '',
         choices: Array.isArray(wo.choices) ? wo.choices : [], wo, pos: cols.parentPos[i]
       });
     });
@@ -1213,9 +1213,9 @@ function renderBuilder() {
 
   app.innerHTML = `<div class="bld">
     <div class="bld-top">
-      <div class="bld-forms">${formsSelectHtml()}
-        <button type="button" class="fr-btn fr-btn--sm fr-icon-add-line fr-btn--icon-left" data-act="newForm">Nouveau formulaire</button>
-        <button type="button" class="fr-btn fr-btn--sm fr-btn--tertiary fr-icon-clipboard-line fr-btn--icon-left" data-act="dupForm">Dupliquer</button></div>
+      <div class="bld-forms">${formsList.length > 1 || !formRowId ? formsSelectHtml() : `<p class="fr-h5 fr-mb-0">${esc(formTitle() || 'Formulaire')}</p>`}
+        <button type="button" class="fr-btn fr-btn--sm fr-btn--tertiary-no-outline fr-icon-add-line fr-btn--icon-left" data-act="newForm">Autre formulaire</button>
+        ${formsList.length > 1 ? '<button type="button" class="fr-btn fr-btn--sm fr-btn--tertiary-no-outline fr-icon-clipboard-line fr-btn--icon-left" data-act="dupForm">Dupliquer</button>' : ''}</div>
       <div class="bld-actions">
         <span id="dirty-badge">${dirtyBadge()}</span>
         <button class="fr-btn fr-btn--sm fr-btn--tertiary fr-icon-eye-line fr-btn--icon-left" data-act="preview">Aperçu</button>
@@ -1469,10 +1469,11 @@ function lookupHtml(l, i, tables) {
     ${checkCtl('Refuser un code qui n’existe pas dans la table', p + 'mustMatch', l.mustMatch, 'Contrôlé aussi par n8n au moment de l’envoi.')}
     ${checkCtl('Empêcher l’usager de modifier les champs préremplis', p + 'lock', l.lock)}
     <div class="bld-row3">
-      ${colSel(p + 'openColId', l.openColId, '— aucune —', { label: 'Colonne « ouvert / fermé »', ph: 'Inscriptions_ouvertes', cols: srcCols.filter(c => c.type === 'Bool'), hint: 'Case décochée dans la table : le code est refusé.' })}
-      ${colSel(p + 'formColId', l.formColId, '— aucune —', { label: 'Colonne « formulaire »', ph: 'Formulaire', hint: 'Seuls les codes rattachés à ce formulaire sont proposés.' })}
+      ${colSel(p + 'openColId', l.openColId, '— aucune —', { label: 'Colonne « ouvert / fermé »', ph: 'Inscriptions_ouvertes', cols: srcCols.filter(c => c.type === 'Bool'), hint: 'Facultatif. Cochée par défaut sur chaque nouvelle ligne ; décochée : le formulaire est fermé pour ce code.' })}
+      ${colSel(p + 'formColId', l.formColId, '— aucune —', { label: 'Colonne « formulaire »', ph: 'Formulaire', hint: 'Inutile avec un seul formulaire. Seulement si plusieurs formulaires différents utilisent la même table.' })}
       ${!ext && l.tableId && l.keyColId ? `<div><p class="fr-label fr-mb-1w">Raccourci</p>
-        <button type="button" class="fr-btn fr-btn--sm fr-btn--tertiary fr-icon-settings-5-line fr-btn--icon-left" data-act="prepStages" data-i="${i}">${colsOf(l.tableId).some(c => c.colId === 'Lien') ? 'Mettre à jour la colonne Lien' : 'Créer ces colonnes et la colonne Lien'}</button></div>` : ''}
+        <button type="button" class="fr-btn fr-btn--sm fr-btn--tertiary fr-icon-settings-5-line fr-btn--icon-left" data-act="prepStages" data-i="${i}">${colsOf(l.tableId).some(c => c.colId === 'Lien') ? 'Mettre à jour la colonne Lien' : 'Créer la colonne Lien (et la case ouvert)'}</button>
+        <p class="fr-hint-text">Fait aussi automatiquement à chaque publication.</p></div>` : ''}
     </div>
   </div>`;
 }
@@ -1566,15 +1567,56 @@ function codesSection() {
   </div>`;
 }
 // Formule Grist de la colonne « Lien » (même adresse que les liens générés ici)
+// Règle qui fournit les codes des liens et QR codes (table Stages…)
+function stagesRule() {
+  const r = codesRule();
+  return r && !r.external && r.tableId && r.keyColId ? r : config.lookups.find(l => !l.external && l.tableId && l.keyColId) || null;
+}
+// Chaque nouvelle ligne de la table reçoit automatiquement son lien, est ouverte et rattachée à ce formulaire.
+async function ensureStagesLinks(l, { createOpen = false } = {}) {
+  if (!inGrist || !l || !config.slug || !publicLink()) return null;
+  const t = l.tableId, col = id => colsOf(t).find(c => c.colId === id);
+  const d = await fetchTableAny(t);
+  const ids = d.id || [];
+  const acts = [], done = [];
+  if (!l.openColId && createOpen) {
+    if (!col('Inscriptions_ouvertes')) {
+      acts.push(['AddColumn', t, 'Inscriptions_ouvertes', { type: 'Bool', label: 'Inscriptions ouvertes', isFormula: false, formula: 'True', recalcWhen: 0 }]);
+      if (ids.length) acts.push(['BulkUpdateRecord', t, ids, { Inscriptions_ouvertes: ids.map(() => true) }]);
+      done.push('case « Inscriptions ouvertes »');
+    }
+    l.openColId = 'Inscriptions_ouvertes';
+  } else if (l.openColId && col(l.openColId) && !col(l.openColId).isFormula && !col(l.openColId).formula) {
+    acts.push(['ModifyColumn', t, l.openColId, { formula: 'True', recalcWhen: 0 }]);
+    done.push('nouvelles lignes ouvertes par défaut');
+  }
+  const fc = l.formColId && col(l.formColId);
+  if (fc && !fc.isFormula) {
+    const def = l.formColRef ? `${l.formColRef}.lookupOne(Slug=${JSON.stringify(config.slug)})` : JSON.stringify(config.slug);
+    if (fc.formula !== def) { acts.push(['ModifyColumn', t, l.formColId, { formula: def, recalcWhen: 0 }]); done.push(`nouvelles lignes rattachées à « ${config.slug} »`); }
+    if (!l.formColRef) {
+      const empty = ids.filter((_, k) => !String((d[l.formColId] || [])[k] ?? '').trim());
+      if (empty.length) { acts.push(['BulkUpdateRecord', t, empty, { [l.formColId]: empty.map(() => config.slug) }]); done.push(`${empty.length} ligne(s) sans formulaire rattachée(s)`); }
+    }
+  }
+  const formula = lienFormula(l), lien = col('Lien');
+  if (!lien) { acts.push(['AddColumn', t, 'Lien', { type: 'Text', isFormula: true, formula }]); done.push('colonne Lien'); }
+  else if (lien.formula !== formula) { acts.push(['ModifyColumn', t, 'Lien', { formula, isFormula: true }]); done.push('colonne Lien mise à jour'); }
+  if (!acts.length) return [];
+  await grist.docApi.applyUserActions(acts);
+  lookupCache[t] = null;
+  await loadSchema();
+  return done;
+}
 function lienFormula(l) {
   const u = new URL(config.publicUrl);
   const base = u.origin + u.pathname;
   const api = config.apiUrl && config.apiUrl !== DEFAULT_API ? '&api=' + encodeURIComponent(config.apiUrl) : '';
-  const formExpr = l.formColId ? (l.formColRef ? `$${l.formColId}.Slug` : `$${l.formColId}`) : '""';
+  const formExpr = l.formColId ? (l.formColRef ? `$${l.formColId}.Slug` : `$${l.formColId}`) : '';
   return ['from urllib.parse import quote',
     `if not $${l.keyColId}:`,
     '  return ""',
-    `form = ${formExpr} or ${JSON.stringify(config.slug)}`,
+    `form = ${formExpr ? formExpr + ' or ' : ''}${JSON.stringify(config.slug)}`,
     `return ${JSON.stringify(base + '?f=')} + quote(str(form)) + ${JSON.stringify(api + '&' + urlParamName() + '=')} + quote(str($${l.keyColId}).strip())`
   ].join('\n');
 }
@@ -2079,6 +2121,7 @@ function renderWizard() {
       <li><strong>Titre :</strong> ${esc(w.title)} <span class="fr-text--sm">(${esc(w.slug)})</span></li>
       <li><strong>Formation choisie :</strong> ${w.useRef === 'oui' ? `dans la table <strong>${esc(w.table)}</strong>, par la colonne ${esc(w.keyCol)}${shown.length ? ` ; blocs affichés : ${esc(shown.join(', '))}` : ''}` : 'non'}</li>
       <li><strong>Questions :</strong> ${esc(TEMPLATES[w.template].label)}</li>
+      ${w.useRef === 'oui' ? `<li><strong>Liens et QR codes :</strong> chaque ligne de ${esc(w.table)}, y compris les prochaines, reçoit automatiquement son lien (colonne Lien, créée à la publication)${w.openCol ? ', et elle est ouverte par défaut' : ''}</li>` : ''}
       <li><strong>Réponses :</strong> nouvelle table <strong>${esc(toTableId('Reponses_' + w.slug))}</strong>, créée à la publication avec une colonne par question</li></ul>
       <p class="fr-text--sm">Après la création, vous arrivez sur les questions : relisez-les, puis publiez depuis l’onglet « 4. Publication ».</p>`;
   }
@@ -2201,7 +2244,8 @@ const actions = {
   },
   logoRemove: () => { config.logo.src = ''; renderBuilder(); },
   newForm: () => {
-    if (isDirty() && !confirm('Des modifications ne sont pas enregistrées. Créer quand même un nouveau formulaire ?')) return;
+    if (formsList.length && !confirm('Un seul formulaire suffit pour toutes les formations : chaque nouvelle ligne de la table des formations reçoit automatiquement son lien et son QR code.\n\nCréer quand même un formulaire différent (autres questions) ?')) return;
+    if (isDirty() && !confirm('Des modifications ne sont pas enregistrées. Continuer ?')) return;
     startWizard();
   },
   dupForm: async () => {
@@ -2264,6 +2308,11 @@ const actions = {
     try {
       const tb = await ensureResponseTable();
       if (tb.created || tb.added) notify(tb.created ? `Table des réponses « ${targetTableId} » créée.` : `${tb.added} colonne(s) ajoutée(s) à « ${targetTableId} ».`, 'info');
+      const sr = stagesRule();
+      if (sr) {
+        try { const done = await ensureStagesLinks(sr); if (done && done.length) notify(`Table ${sr.tableId} : ${done.join(', ')}.`, 'info'); }
+        catch (e) { console.warn(e); notify(`Colonne Lien de ${sr.tableId} non mise à jour : ${e.message || e}`, 'warning'); }
+      }
       await saveOptions();
       const row = await findFormRow();
       const d = row.all;
@@ -2366,33 +2415,10 @@ const actions = {
     const l = config.lookups[+el.dataset.i];
     if (!inGrist) { notify('Cette action se fait depuis le widget dans Grist.', 'info'); return; }
     if (!config.slug || !publicLink()) { notify('Renseignez d’abord l’identifiant du formulaire et l’adresse de la page publique (onglet « 4. Publication »).', 'warning'); tab = 'publish'; renderBuilder(); return; }
-    const t = l.tableId, has = id => colsOf(t).some(c => c.colId === id);
     try {
-      const d = await fetchTableAny(t);
-      const ids = d.id || [];
-      const acts = [];
-      if (!l.formColId) {
-        if (!has('Formulaire')) {
-          acts.push(['AddColumn', t, 'Formulaire', { type: 'Choice', widgetOptions: JSON.stringify({ choices: [config.slug] }) }]);
-          if (ids.length) acts.push(['BulkUpdateRecord', t, ids, { Formulaire: ids.map(() => config.slug) }]);
-        }
-        l.formColId = 'Formulaire'; l.formColRef = '';
-      }
-      if (!l.openColId) {
-        if (!has('Inscriptions_ouvertes')) {
-          acts.push(['AddColumn', t, 'Inscriptions_ouvertes', { type: 'Bool', label: 'Inscriptions ouvertes' }]);
-          if (ids.length) acts.push(['BulkUpdateRecord', t, ids, { Inscriptions_ouvertes: ids.map(() => true) }]);
-        }
-        l.openColId = 'Inscriptions_ouvertes';
-      }
-      const formula = lienFormula(l);
-      acts.push(has('Lien') ? ['ModifyColumn', t, 'Lien', { formula, isFormula: true }]
-        : ['AddColumn', t, 'Lien', { type: 'Text', isFormula: true, formula }]);
-      await grist.docApi.applyUserActions(acts);
-      lookupCache[t] = null;
-      await loadSchema();
+      const done = await ensureStagesLinks(l, { createOpen: true });
       await saveOptions();
-      notify(`Table ${t} prête : colonnes Formulaire, Inscriptions ouvertes et Lien. Pensez à republier.`, 'success');
+      notify(done && done.length ? `Table ${l.tableId} : ${done.join(', ')}. Pensez à publier.` : `La table ${l.tableId} est déjà prête.`, 'success');
     } catch (e) { console.error(e); notify('Modification impossible : ' + (e.message || e), 'error'); }
     renderBuilder();
   },

@@ -12,7 +12,9 @@ Pour activer GitHub Pages : **Settings → Pages → Build and deployment**, cho
 
 Les pages ne dépendent d'aucun site externe : le DSFR (v1.12.1, polices et icônes) et la bibliothèque de QR code sont inclus dans le dossier `vendor/`. Dans Grist, l'API des widgets est chargée depuis l'instance Grist elle-même, avec docs.getgrist.com en secours.
 
-## Principe : un formulaire qui s'adapte à la formation choisie
+## Principe : un formulaire matrice qui s'adapte à la formation choisie
+Un **seul formulaire**, configuré une fois : les questions sont toujours les mêmes, seuls le titre et les informations de la formation changent. Chaque nouvelle ligne de la table Stages reçoit **automatiquement** son lien et son QR code, sans rien reconfigurer.
+
 1. L'usager choisit la formation dans une **liste avec recherche** : il tape « NAS0 » ou un mot de l'intitulé. Avec un lien ou un QR code par formation, le code est déjà rempli.
 2. La ligne de cette formation, dans une table Grist, remplit les **éléments non saisissables** du formulaire : titre, sous-titre, sections et blocs de texte (dates, lieu, formateur, objectifs…).
 3. Les questions d'évaluation suivent. La réponse est enregistrée avec le code de la formation.
@@ -32,7 +34,7 @@ Les répondants n'ont jamais accès au document Grist.
 - **Document principal** :
   - le widget de configuration ;
   - la table `Formulaires` : une ligne par formulaire, avec le **brouillon** (bouton Enregistrer du widget) et la **configuration publiée** (bouton Publier), lue par n8n ;
-  - la table `Stages`, avec les colonnes Code, Intitulé, Dates…, **Formulaire**, **Inscriptions ouvertes** et **Lien** ;
+  - la table `Stages`, avec les colonnes Code, Intitulé, Dates…, **Lien** (formule ajoutée à la publication) et, si vous le souhaitez, **Inscriptions ouvertes** (cochée par défaut sur chaque nouvelle ligne) ;
   - une table de **réponses par formulaire** (par défaut `Reponses_<identifiant>`), **créée automatiquement à la publication** avec une colonne par question.
 - **Document des réponses** (facultatif) : une table avec les **mêmes identifiants de colonnes** que la table de réponses du document principal, qui sert de modèle. Toutes les réponses publiques y arrivent. Le code stage est enregistré dans une colonne : filtrez ou regroupez par stage dans Grist.
 
@@ -58,12 +60,9 @@ Pour obtenir des liens plus courts, inscrivez l'URL du webhook n8n dans la const
    - **Avancé** : import / export de la configuration.
 4. Le menu **Formulaire** en haut permet de passer d'un formulaire à l'autre ; **Dupliquer** crée une copie (avec sa propre table de réponses). Les adresses n8n et de la page publique, le logo et l'en-tête sont repris automatiquement du formulaire précédent.
 
-   Le bouton **Ajouter Formulaire, Ouvert et Lien** complète ensuite la table Stages avec trois colonnes :
-   - **Formulaire** : le modèle de formulaire utilisé par le stage ;
-   - **Inscriptions ouvertes** : une case à cocher ;
-   - **Lien** : une formule qui calcule l'adresse du formulaire pour ce stage.
+5. **Ajouter une formation** = ajouter une ligne dans Stages. Sa colonne **Lien** se calcule seule, le widget QR code l'affiche, et le formulaire la propose dans la liste. Pour fermer une formation, décochez sa case « Inscriptions ouvertes ».
 
-   Renseignez d'abord l'onglet Publication, car la formule du Lien en a besoin. Si vous modifiez ensuite ces réglages, cliquez sur « Mettre à jour la colonne Lien ».
+   « Autre formulaire » n'est utile que pour un questionnaire **différent** (autres questions). La colonne « Formulaire » de Stages ne sert alors qu'à répartir les formations entre ces questionnaires ; avec un seul formulaire, elle est inutile.
 
 ## 2 bis. Ajouter le widget QR code à côté de la table Stages
 1. Ajoutez un widget **Personnalisé** avec l'URL de `qrcode.html`, sélectionné par la table Stages.
@@ -92,7 +91,7 @@ La clé API doit appartenir à un compte qui a au moins accès en lecture compl�
 ## 4. Publier
 Dans le widget, onglet **4. Publication** :
 1. Renseignez l'URL du webhook n8n et l'adresse de la page publique (reprises automatiquement pour les formulaires suivants).
-2. Cliquez sur **Publier**. La table des réponses est créée (ou complétée des colonnes manquantes), puis le brouillon enregistré dans la table `Formulaires` devient la version en ligne. Sans l'adresse du webhook n8n, aucun lien ni QR code n'est généré, car le formulaire public ne pourrait pas fonctionner.
+2. Cliquez sur **Publier**. La table des réponses est créée (ou complétée des colonnes manquantes), la colonne **Lien** de Stages est créée ou mise à jour, puis le brouillon enregistré dans la table `Formulaires` devient la version en ligne. Sans l'adresse du webhook n8n, aucun lien ni QR code n'est généré, car le formulaire public ne pourrait pas fonctionner.
 3. **Destination des réponses publiques** : indiquez l'identifiant du document des réponses et le nom de sa table. Laissez vide pour enregistrer dans le document principal.
 4. **Un lien et un QR code par formation** : le lien public général ouvre le formulaire sans formation choisie. Ici, chaque formation reçoit son propre lien, qui ouvre le formulaire déjà adapté à elle. Choisissez le champ qui reçoit le code de la formation : la liste des formations s'affiche, avec pour chacune :
    - son lien à copier, à envoyer par courriel aux personnes sans téléphone ;
