@@ -54,6 +54,7 @@ Pour obtenir des liens plus courts, inscrivez l'URL du webhook n8n dans la const
    4. **Récapitulatif**, puis « Créer le formulaire ».
 3. La configuration s'organise ensuite en onglets :
    - **1. Formulaire** : identifiant, **présentation**, textes, table des réponses, logo et en-tête de l'État.
+     En « une section par écran », l'élément **Saut de page** (onglet 3) coupe une section en plusieurs écrans qui gardent le même titre. La page de confirmation peut proposer « Déposer une nouvelle réponse » (case à cocher, désactivée par défaut).
      Présentation *tout sur une page*, ou **écran par écran** (une question, ou une section, à la fois) : accueil avec les informations du stage, boutons « Précédent » et « OK » (ou touche Entrée), barre de progression, récapitulatif avec « Modifier » avant l'envoi. Conçu pour le téléphone : grandes cases de choix, boutons en bas d'écran, le bouton retour du téléphone revient à la question précédente ;
    - **2. Formation choisie** : la règle de préremplissage. Pour chaque colonne de la ligne choisie, l'élément qui l'affiche : titre, section, bloc de texte ou champ ;
      le **code** et l'**intitulé** du stage sont enregistrés avec chaque réponse (l'intitulé via un « champ caché »). Pour un formulaire créé avant cette version, cliquez sur « Les enregistrer dans les réponses », puis sur Publier ;

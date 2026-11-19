@@ -28,7 +28,7 @@
   .dn-section__num{display:inline-flex;align-items:center;justify-content:center;width:2rem;height:2rem;border-radius:50%;
     background:var(--background-action-high-blue-france);color:var(--text-inverted-blue-france);font-size:1rem;margin-right:.75rem}
   .dn-block{margin-bottom:1.75rem}
-  .dn-block>.fr-label,.dn-block>.fr-fieldset__legend,.dn-block .fr-checkbox-group>.fr-label{font-weight:700}
+  .dn-block>.fr-label,.dn-block>.fr-fieldset__legend,.dn-block .fr-checkbox-group>.fr-label{font-weight:400}
   .dn-block .fr-hint-text{font-weight:400}
   .dn-cols-2>.fr-fieldset__element{flex:0 0 50%;max-width:50%}
   .dn-cols-3>.fr-fieldset__element{flex:0 0 33.333%;max-width:33.333%}
@@ -55,6 +55,7 @@
   .dn-progress__bar span{display:block;height:100%;background:var(--background-active-blue-france);transition:width .3s ease}
   .dn-progress__txt{font-size:.875rem;line-height:1.5rem;margin:.5rem 0 0;color:var(--text-mention-grey)}
   .dn-steps:not(.dn-at-intro) .dn-head{display:none}
+  .dn-steps.dn-cont [data-style=section]>.dn-text{display:none}
   .dn-steps.dn-anim .dn-cur{animation:dnIn .28s ease-out both}
   .dn-steps.dn-back .dn-cur{animation-name:dnBack}
   @keyframes dnIn{from{opacity:0;transform:translateY(1rem)}to{opacity:1;transform:none}}
@@ -218,6 +219,7 @@ const TYPES = {
   section: 'Titre de section',
   tableselect: 'Choix dans une table (liste avec recherche)',
   contenu: 'Bloc de texte (non saisissable)',
+  pagebreak: 'Saut de page (écran par écran)',
   text: 'Texte court',
   textarea: 'Texte long',
   email: 'Adresse électronique',
@@ -264,7 +266,7 @@ const REGEX_PRESETS = {
 function isEmpty(v) { return v == null || v === '' || v === false || (Array.isArray(v) && !v.length); }
 function norm(v) { return String(v == null ? '' : v).trim().toLowerCase(); }
 function keyNorm(v) { return String(v == null ? '' : v).toLowerCase().replace(/\s+/g, ''); }
-function isInput(f) { return !!f && f.type !== 'section' && f.type !== 'contenu' && f.type !== 'explication'; }
+function isInput(f) { return !!f && f.type !== 'section' && f.type !== 'contenu' && f.type !== 'explication' && f.type !== 'pagebreak'; }
 function testCond(c, values) {
   const op = c.op || 'eq';
   const v = values[c.fieldId];
@@ -435,7 +437,7 @@ function defaultConfig() {
     fields: [], lookups: [],
     slug: '', apiUrl: '', publicUrl: '', qrMode: 'autonome', qrUrl: '',
     responsesDocId: '', responsesTableId: '',
-    urlField: '', urlParam: 'code', urlLock: true, urlLabelColId: '', urlCodes: '', showQrTop: false, targetTableId: '', foundMessage: 'Référence stage trouvée.', presentation: 'page'
+    urlField: '', urlParam: 'code', urlLock: true, urlLabelColId: '', urlCodes: '', showQrTop: false, targetTableId: '', foundMessage: 'Référence stage trouvée.', presentation: 'page', allowNewResponse: false
   };
 }
 function newField(type, label) {
@@ -444,6 +446,7 @@ function newField(type, label) {
     required: false, noSave: false, hiddenField: false, options: [], layout: '', regexPreset: 'none', regex: '', regexMessage: '', condition: null
   };
   if (type === 'contenu' && label == null) f.label = '';
+  if (type === 'pagebreak' && label == null) f.label = '';
   fixField(f);
   return f;
 }
@@ -720,10 +723,15 @@ function buildScreens() {
   const bySection = config.presentation === 'section';
   const screens = [];
   let cur = null, section = null;
-  const close = () => { if (cur && cur.items.length) screens.push(cur); cur = null; };
+  const close = () => { if (cur && cur.items.length && !(cur.key && cur.items.every(x => x.type === 'section'))) screens.push(cur); cur = null; };
   const open = () => { cur = { key: '', items: [], inputs: 0, section }; };
   config.fields.forEach(f => {
     if (!stepShows(f, vis)) { if (f.type === 'section') section = null; return; }
+    if (f.type === 'pagebreak') {           // nouvel écran, même titre de section
+      if (!bySection || !cur || cur.items.every(x => x.type === 'section')) return;
+      close(); open(); cur.key = f.id; if (section) cur.items.push(section);
+      return;
+    }
     if (f.type === 'section') { close(); section = f; open(); cur.items.push(f); return; }
     if (!isInput(f)) {                       // bloc de texte : contexte de la question qui suit
       if (!cur || (!bySection && cur.inputs)) { close(); open(); }
@@ -733,7 +741,7 @@ function buildScreens() {
     cur.items.push(f); cur.inputs++;
   });
   close();
-  screens.forEach(sc => { sc.key = sc.items[0].id; });
+  screens.forEach(sc => { sc.key = sc.key || sc.items[0].id; });
   // accueil : en-tête + écrans d’information qui précèdent la première question (ex. le stage choisi par le lien)
   const intro = { key: 'intro', items: [], inputs: 0 };
   while (screens.length && !screens[0].inputs) intro.items.push(...screens.shift().items);
@@ -781,6 +789,7 @@ function showStep(key, dir) {
   form.classList.toggle('dn-at-recap', isRecap);
   form.classList.toggle('dn-back', dir < 0);
   form.classList.toggle('dn-anim', dir !== 0);
+  form.classList.toggle('dn-cont', (fieldById(sc.key) || {}).type === 'pagebreak');   // suite d’une section : titre seul
   document.body.classList.toggle('dn-on-intro', isIntro);
   $$('.dn-block.dn-cur', form).forEach(b => b.classList.remove('dn-cur'));
   sc.items.forEach(f => {
@@ -1015,6 +1024,7 @@ function fieldHtml(f, secNum) {
   const opts = f.options || [];
 
   switch (f.type) {
+    case 'pagebreak': return `<div class="dn-pb" data-fid="${f.id}" aria-hidden="true"></div>`;
     case 'section': {
       const lab = label;
       const intro = f.hint ? mdr(f.hint) : '';
@@ -1422,10 +1432,10 @@ function showSuccess(rowId, record) {
     <div class="fr-alert fr-alert--success fr-mb-4w">
       <h1 class="fr-alert__title">${txt1(config.successTitle)}</h1>
       <div class="dn-text">${mdr(config.successMessage)}</div>
-      ${rowId ? `<p class="fr-mt-1w">Numéro d’enregistrement : <strong>n° ${esc(rowId)}</strong></p>` : ''}
     </div>
     ${wasPreview ? `<details class="fr-mb-4w"><summary>Données qui seraient envoyées à Grist</summary><pre class="fr-text--xs">${esc(JSON.stringify(record, null, 2))}</pre></details>` : ''}
-    <button class="fr-btn fr-btn--secondary fr-icon-add-line fr-btn--icon-left" data-act="${wasPreview ? 'preview' : 'newResponse'}">Déposer une nouvelle réponse</button>
+    ${wasPreview ? '<button class="fr-btn fr-btn--secondary fr-icon-refresh-line fr-btn--icon-left" data-act="preview">Recommencer l’aperçu</button>'
+      : config.allowNewResponse ? '<button class="fr-btn fr-btn--secondary fr-icon-add-line fr-btn--icon-left" data-act="newResponse">Déposer une nouvelle réponse</button>' : ''}
   </main>`;
   window.scrollTo(0, 0);
 }
@@ -1525,6 +1535,7 @@ function generalTab() {
       ${inputCtl('Libellé du bouton d’envoi', 'submitLabel', config.submitLabel)}
       ${inputCtl('Titre du message de confirmation', 'successTitle', config.successTitle, { content: true })}
       ${textareaCtl('Message de confirmation', 'successMessage', config.successMessage, { rows: 3, content: true, md: true })}
+      ${checkCtl('Proposer de déposer une nouvelle réponse', 'allowNewResponse', config.allowNewResponse, 'Un bouton sur la page de confirmation, pour remplir à nouveau le formulaire.')}
 
       <p class="bld-h fr-mt-4w">Où sont enregistrées les réponses</p>
       ${selectCtl('Table des réponses', 'targetTableId',
@@ -1576,6 +1587,7 @@ function itemLabel(f) {
     const fedBy = [...new Set(config.lookups.flatMap(l => (l.mappings || []).filter(m => m.fieldId === f.id && m.colId).map(m => m.label || m.colId)))];
     return f.label || String(f.hint || '').replace(/\s+/g, ' ').slice(0, 60) || (fedBy.length ? `alimenté par ${fedBy.join(', ')}` : '(bloc vide)');
   }
+  if (f.type === 'pagebreak') return '— nouvel écran —';
   return f.label || '(sans libellé)';
 }
 function listItemHtml(f, i) {
@@ -1589,7 +1601,7 @@ function listItemHtml(f, i) {
   if (config.lookups.some(l => l.mappings.some(m => m.fieldId === f.id))) flags.push('prérempli');
   if (isInput(f) && f.noSave) flags.push('non enregistré');
   else if (isInput(f) && (!f.colId || !colsOf(targetTableId).some(c => c.colId === f.colId))) flags.push('nouvelle colonne');
-  const cls = f.type === 'section' ? ' bld-li--section' : f.type === 'contenu' ? ' bld-li--text' : '';
+  const cls = f.type === 'section' ? ' bld-li--section' : f.type === 'contenu' || f.type === 'pagebreak' ? ' bld-li--text' : '';
   return `<div class="bld-li${cls}${f.id === selectedFieldId ? ' is-active' : ''}" data-act="sel" data-id="${f.id}">
     <div class="bld-li__main"><span class="bld-li__type">${esc(TYPES[f.type] || f.type)}</span>
       <span class="bld-li__label" data-li-label="${f.id}">${esc(itemLabel(f))}</span>
@@ -1604,6 +1616,10 @@ function listItemHtml(f, i) {
 function editorHtml(f, i) {
   const p = `fields.${i}.`;
   let h = selectCtl('Type', p + 'type', Object.entries(TYPES), f.type);
+  if (f.type === 'pagebreak') {
+    return h + `<div class="fr-callout fr-callout--sm"><p class="fr-callout__text fr-text--sm">En présentation « une section par écran », les éléments qui suivent passent sur un nouvel écran,
+      avec le même titre de section. Sans effet dans les autres présentations.${config.presentation !== 'section' ? ' <strong>Présentation actuelle : ' + esc(config.presentation === 'question' ? 'une question par écran' : 'tout sur une page') + '</strong> (onglet 1).' : ''}</p></div>`;
+  }
   if (f.type === 'contenu') {
     h += selectCtl('Présentation', p + 'style', BLOCK_STYLES, f.style);
     h += inputCtl('Titre du bloc (facultatif)', p + 'label', f.label);
@@ -1790,7 +1806,7 @@ function targetOptions(l) {
   const disp = f => f.type === 'contenu' ? `Bloc de texte : ${itemLabel(f)}` : `Section : ${itemLabel(f)}`;
   return [['', '— élément du formulaire —'],
     ...HEAD_TARGETS.map(([k, v]) => [k, v]),
-    ...config.fields.filter(f => !isInput(f)).map(f => [f.id, disp(f)]),
+    ...config.fields.filter(f => !isInput(f) && f.type !== 'pagebreak').map(f => [f.id, disp(f)]),
     ...config.fields.filter(f => isInput(f) && f.id !== l.triggerFieldId).map(f => [f.id, `Champ : ${resolve(f.label)}`])];
 }
 

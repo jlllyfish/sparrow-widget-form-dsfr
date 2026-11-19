@@ -14,6 +14,7 @@ La version en service s'affiche dans le widget, avec le bouton « Tester la conn
 
 | Version | Nœuds à remplacer | Changement |
 |---|---|---|
+| 6 (facultatif) | `preparer-recherche.js`, `preparer-la-liste.js`, `valider.js` | Le « saut de page » est reconnu comme élément non saisissable. Sans cette mise à jour, tout fonctionne : n8n l'ignore déjà. |
 | 6 | `preparer.js`, `preparer-recherche.js`, `preparer-la-liste.js`, `valider.js` | Les cases cochées stockées par Grist sous la forme « T » sont reconnues. |
 | 5 | `preparer.js`, `preparer-la-liste.js`, `reponse-liste.js` | Diagnostic de la liste de choix. |
 | 4 | Réimport complet | Messages d'erreur de Grist explicites, suppression de la table Contenus. |

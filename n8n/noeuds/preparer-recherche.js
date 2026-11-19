@@ -22,7 +22,7 @@ const REGEX_PRESETS = {
 function isEmpty(v) { return v == null || v === '' || v === false || (Array.isArray(v) && !v.length); }
 function norm(v) { return String(v == null ? '' : v).trim().toLowerCase(); }
 function keyNorm(v) { return String(v == null ? '' : v).toLowerCase().replace(/\s+/g, ''); }
-function isInput(f) { return !!f && f.type !== 'section' && f.type !== 'contenu' && f.type !== 'explication'; }
+function isInput(f) { return !!f && f.type !== 'section' && f.type !== 'contenu' && f.type !== 'explication' && f.type !== 'pagebreak'; }
 function testCond(c, values) {
   const op = c.op || 'eq';
   const v = values[c.fieldId];
