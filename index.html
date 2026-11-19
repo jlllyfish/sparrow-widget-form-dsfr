@@ -1447,6 +1447,12 @@ function onFormChange(el) {
   if (al && al.innerHTML && !$('[data-err]')) al.innerHTML = '';
 }
 
+// Erreurs sur des champs que l’usager ne voit pas (champ caché, code venu du lien…) : listées dans l’alerte
+function unseenErrors(bad, errors) {
+  const list = bad.filter(f => { const b = blockOf(f); return (f.hiddenField && f.type === 'text') || !b || b.offsetParent === null; });
+  if (list.length) console.warn('Erreurs sur des champs non affichés', list.map(f => [f.label, errors[f.id]]));
+  return list.length ? `<ul class="fr-mb-0">${list.map(f => `<li><strong>${esc(String(f.label || 'Champ'))}</strong> : ${esc(errors[f.id])}</li>`).join('')}</ul>` : '';
+}
 function showFormErrors(errors, message) {
   config.fields.filter(isInput).forEach(f => showError(f, errors[f.id] || ''));
   const bad = config.fields.filter(f => errors[f.id]);
@@ -1456,13 +1462,17 @@ function showFormErrors(errors, message) {
       const sc = buildScreens().find(s => s.items.some(f => f.id === bad[0].id));
       if (sc && sc.key !== stepKey) { stepReturnRecap = stepKey === 'recap'; showStep(sc.key, -1); config.fields.filter(isInput).forEach(f => showError(f, errors[f.id] || '')); }
     }
-    $('#form-alert').innerHTML = message ? `<div class="fr-alert fr-alert--error fr-alert--sm fr-mt-2w"><p>${esc(message)}</p></div>` : '';
-    if (n) { const first = $('input:not([type=hidden]),select,textarea', blockOf(bad[0])); if (first) first.focus(); }
+    const unseen = unseenErrors(bad, errors);
+    $('#form-alert').innerHTML = message || unseen ? `<div class="fr-alert fr-alert--error fr-alert--sm fr-mt-2w"><p>${esc(message || '')}</p>${unseen}</div>` : '';
+    if (message || unseen) $('#form-alert').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    else if (n) { const first = $('input:not([type=hidden]),select,textarea', blockOf(bad[0])); if (first) first.focus(); }
     return;
   }
+  const unseen = unseenErrors(bad, errors);
   $('#form-alert').innerHTML = `<div class="fr-alert fr-alert--error fr-alert--sm fr-mt-2w"><p>${esc(message ||
-    (n > 1 ? `Le formulaire contient ${n} erreurs. Corrigez les champs signalés.` : 'Le formulaire contient une erreur. Corrigez le champ signalé.'))}</p></div>`;
-  if (n) {
+    (n > 1 ? `Le formulaire contient ${n} erreurs. Corrigez les champs signalés.` : 'Le formulaire contient une erreur. Corrigez le champ signalé.'))}</p>${unseen}</div>`;
+  if (unseen) $('#form-alert').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  else if (n) {
     const first = $('input:not([type=hidden]),select,textarea', blockOf(bad[0]));
     if (first) first.focus();
     blockOf(bad[0]).scrollIntoView({ behavior: 'smooth', block: 'center' });
