@@ -138,6 +138,7 @@ function startApp() {
    ===================================================================== */
 const DEFAULT_API = '';
 const FORMS_TABLE = 'Formulaires';
+const WF_VERSION = 3;   // version du workflow n8n attendue par cette page
 
 /* =====================================================================
    Contexte d'exécution
@@ -1598,8 +1599,10 @@ function publishTab() {
       <p class="bld-link" id="public-link">${link ? esc(link) : 'Renseignez l’identifiant, l’adresse du webhook n8n et l’adresse de la page publique.'}</p>
       <div class="bld-btnrow fr-mt-0 fr-mb-3w">
         <button type="button" class="fr-btn fr-btn--sm fr-icon-upload-line fr-btn--icon-left" data-act="publish">${inGrist ? 'Publier / mettre à jour' : 'Publier (dans Grist uniquement)'}</button>
+        <button type="button" class="fr-btn fr-btn--sm fr-btn--secondary fr-icon-checkbox-circle-line fr-btn--icon-left" data-act="testConn">Tester la connexion</button>
         <button type="button" class="fr-btn fr-btn--sm fr-btn--tertiary fr-icon-links-line fr-btn--icon-left" data-act="copyPublic"${link ? '' : ' disabled'}>Copier le lien public</button>
       </div>
+      <div id="conn-result" aria-live="polite"></div>
       <p class="fr-text--xs fr-text-mention--grey">La publication enregistre la configuration dans la table « ${FORMS_TABLE} » (créée si besoin). Décochez « Publie » dans cette table pour suspendre le formulaire.</p>
 
       <p class="bld-h fr-mt-4w">Destination des réponses publiques</p>
@@ -2099,6 +2102,40 @@ const actions = {
       notify('Publication impossible : ' + (e.message || e), 'error');
     }
     renderBuilder();
+  },
+  testConn: async () => {
+    const box = $('#conn-result');
+    const api = config.apiUrl || DEFAULT_API;
+    const lines = [];
+    const add = (ok, t) => lines.push(`<li>${ok ? '✅' : '❌'} ${esc(t)}</li>`);
+    const show = () => { box.innerHTML = `<ul class="fr-text--sm fr-mb-2w">${lines.join('')}</ul>`; };
+    if (!api) { add(false, 'Adresse du webhook n8n non renseignée.'); return show(); }
+    if (!config.slug) { add(false, 'Identifiant du formulaire non renseigné.'); return show(); }
+    box.innerHTML = '<p class="fr-text--sm">Test en cours…</p>';
+    let r;
+    try { r = await callApi(api, { action: 'ping', f: config.slug }); }
+    catch (e) { add(false, `n8n ne répond pas (${e.message}). Vérifiez l’adresse (URL de production, pas /webhook-test/) et que le workflow est activé.`); return show(); }
+    if (!r || r.version == null) { add(false, 'n8n répond, mais avec une ancienne version du workflow : réimportez n8n/workflow-n8n-formulaire-dsfr.json.'); return show(); }
+    add(true, `n8n répond (workflow version ${r.version}).`);
+    if (r.version < WF_VERSION) add(false, `Ce widget attend la version ${WF_VERSION} du workflow : réimportez-le dans n8n.`);
+    if (!r.published) {
+      add(false, `n8n ne trouve pas le formulaire « ${config.slug} » publié. Cliquez sur Publier, vérifiez la case Publie de la table Formulaires et l’identifiant du document dans le nœud Paramètres de n8n.`);
+      return show();
+    }
+    add(true, `Le formulaire « ${config.slug} » est publié et lu par n8n.`);
+    if (inGrist) {
+      try { const row = await findFormRow(); if (row && row.pub !== JSON.stringify(config)) add(false, 'Des modifications ne sont pas encore en ligne : cliquez sur Publier.'); } catch (e) { /* ignore */ }
+    }
+    const rule = config.lookups.find(l => (fieldById(l.triggerFieldId) || {}).type === 'tableselect');
+    if (rule) {
+      try {
+        const o = await callApi(api, { action: 'options', f: config.slug, rule: rule.id });
+        if (o && o.ok) add((o.options || []).length > 0, `${(o.options || []).length} choix proposé(s) dans la liste « ${resolve(fieldById(rule.triggerFieldId).label)} ».`);
+        else add(false, 'Liste de choix : ' + ((o && o.error) || 'erreur'));
+      } catch (e) { add(false, 'Liste de choix : ' + e.message); }
+    }
+    if (config.urlField && !fieldById(config.urlField)) add(false, 'Le champ qui reçoit le code par le lien n’existe plus : choisissez-le de nouveau ci-dessous.');
+    show();
   },
   copyPublic: () => { const l = publicLink(); if (l) copyText(l); },
   close: () => {

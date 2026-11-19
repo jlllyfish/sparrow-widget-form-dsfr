@@ -117,4 +117,11 @@ Dans le widget, onglet **Publication & QR code** :
 - **lookup** : renvoie uniquement les éléments à afficher ou préremplir pour la ligne choisie. La comparaison ignore la casse et les espaces. Il est impossible de télécharger la table entière. Il signale aussi si les inscriptions sont closes, et ignore les stages rattachés à un autre formulaire.
 - **submit** : refait côté serveur toutes les vérifications du navigateur : champs obligatoires, expressions régulières, conditions, options proposées, et code stage existant, rattaché à ce formulaire et ouvert. Les champs masqués sont ignorés, ainsi que les colonnes non prévues. Un champ piège invisible bloque les robots.
 
+## Vérifier que tout fonctionne
+Dans le widget, onglet **Publication & QR code**, le bouton **Tester la connexion** vérifie que :
+- n8n répond, et avec la bonne version du workflow ;
+- le formulaire est publié et lu par n8n ;
+- les dernières modifications sont publiées ;
+- la liste de choix contient bien des formations.
+
 Si le navigateur affiche une erreur CORS, vérifiez l'option *Allowed Origins (CORS)* du nœud Webhook. Elle vaut `*` par défaut ; vous pouvez y mettre l'adresse de votre page publique.
