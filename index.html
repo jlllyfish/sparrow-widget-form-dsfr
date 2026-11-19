@@ -138,7 +138,7 @@ function startApp() {
    ===================================================================== */
 const DEFAULT_API = '';
 const FORMS_TABLE = 'Formulaires';
-const WF_VERSION = 3;   // version du workflow n8n attendue par cette page
+const WF_VERSION = 4;   // version du workflow n8n attendue par cette page
 
 /* =====================================================================
    Contexte d'exécution
@@ -2130,7 +2130,9 @@ const actions = {
     if (rule) {
       try {
         const o = await callApi(api, { action: 'options', f: config.slug, rule: rule.id });
-        if (o && o.ok) add((o.options || []).length > 0, `${(o.options || []).length} choix proposé(s) dans la liste « ${resolve(fieldById(rule.triggerFieldId).label)} ».`);
+        const n = o && o.ok ? (o.options || []).length : 0;
+        if (o && o.ok) add(n > 0, `${n} choix proposé(s) dans la liste « ${resolve(fieldById(rule.triggerFieldId).label)} ».`
+          + (n ? '' : ` Vérifiez dans la table ${rule.tableId} que la colonne du code est remplie${rule.formColId ? `, que la colonne « ${rule.formColId} » contient « ${config.slug} »` : ''}${rule.openColId ? ` et que la case « ${rule.openColId} » est cochée` : ''}.`));
         else add(false, 'Liste de choix : ' + ((o && o.error) || 'erreur'));
       } catch (e) { add(false, 'Liste de choix : ' + e.message); }
     }
