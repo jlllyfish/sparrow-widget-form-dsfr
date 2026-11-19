@@ -105,6 +105,17 @@
   .bld-btnrow{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1rem}
   .bld-test-ok{color:var(--text-default-success)} .bld-test-ko{color:var(--text-default-error)}
   .bld-json{width:100%;min-height:24rem;font-family:monospace;font-size:.8rem}
+  .bld-forms{display:flex;gap:.5rem;align-items:flex-end;flex-wrap:wrap}
+  .bld-forms .fr-select-group{margin:0;min-width:18rem}
+  .wiz{max-width:48rem;margin:0 auto;padding:1.5rem 1.25rem 4rem}
+  .wiz-nav{display:flex;justify-content:space-between;gap:1rem;margin-top:2rem;padding-top:1rem;border-top:1px solid var(--border-default-grey)}
+  .wiz-cols{columns:2;column-gap:2rem}
+  .wiz-cols .fr-checkbox-group{break-inside:avoid}
+  .wiz-tpl{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem}
+  .wiz-tpl label{display:block;border:1px solid var(--border-default-grey);padding:1rem;cursor:pointer;height:100%}
+  .wiz-tpl input:checked+span{color:var(--text-active-blue-france)}
+  .wiz-tpl label:has(input:checked){border-color:var(--border-active-blue-france);box-shadow:inset 0 0 0 1px var(--border-active-blue-france)}
+  @media (max-width:760px){.wiz-tpl{grid-template-columns:1fr}.wiz-cols{columns:1}}
   .bld-codes table{width:100%}
   .bld-codes__link{font-family:monospace;font-size:.75rem;word-break:break-all;max-width:28rem}
   .bld-codes td:last-child{white-space:nowrap}
@@ -344,7 +355,10 @@ const mdr = s => md(resolve(s));
 let config = defaultConfig();
 let savedJson = JSON.stringify(config);
 let schema = {};
-let targetTableId = null;
+let targetTableId = null;   // table des réponses du formulaire courant (config.targetTableId)
+let widgetTableId = null;   // table à laquelle le widget est relié dans Grist
+let formsList = [];         // formulaires du document (table Formulaires)
+let wiz = null;             // état de l’assistant de création
 let mode = 'form';          // form | builder | preview | success
 let tab = 'fields';
 let selectedFieldId = null;
@@ -367,13 +381,13 @@ function defaultConfig() {
     fields: [], lookups: [],
     slug: '', apiUrl: '', publicUrl: '', qrMode: 'autonome', qrUrl: '',
     responsesDocId: '', responsesTableId: '',
-    urlField: '', urlParam: 'code', urlLock: true, urlLabelColId: '', urlCodes: '', showQrTop: false
+    urlField: '', urlParam: 'code', urlLock: true, urlLabelColId: '', urlCodes: '', showQrTop: false, targetTableId: ''
   };
 }
 function newField(type, label) {
   const f = {
     id: uid('f'), type, label: label ?? TYPES[type], hint: '', placeholder: '', colId: '', style: 'paragraphe',
-    required: false, options: [], layout: '', regexPreset: 'none', regex: '', regexMessage: '', condition: null
+    required: false, noSave: false, options: [], layout: '', regexPreset: 'none', regex: '', regexMessage: '', condition: null
   };
   if (type === 'contenu' && label == null) f.label = '';
   fixField(f);
@@ -477,7 +491,6 @@ const MOCK = {
 
 async function loadSchema() {
   if (!inGrist) {
-    targetTableId = MOCK.target;
     schema = {};
     Object.entries(MOCK.schema).forEach(([t, cols]) => {
       schema[t] = cols.map(([colId, type]) => ({ colId, label: colId.replace(/_/g, ' '), type, isFormula: false, choices: [] }));
@@ -485,7 +498,7 @@ async function loadSchema() {
     return;
   }
   try {
-    targetTableId = grist.getSelectedTableId ? await grist.getSelectedTableId() : await grist.selectedTable.getTableId();
+    widgetTableId = grist.getSelectedTableId ? await grist.getSelectedTableId() : await grist.selectedTable.getTableId();
   } catch (e) { console.warn('Table du widget introuvable', e); }
   try {
     const [tables, cols] = await Promise.all([
@@ -505,7 +518,7 @@ async function loadSchema() {
       s[t].push({
         colId, label: cols.label[i] || colId, type: cols.type[i],
         isFormula: !!cols.isFormula[i] && !!cols.formula[i],
-        choices: Array.isArray(wo.choices) ? wo.choices : [], pos: cols.parentPos[i]
+        choices: Array.isArray(wo.choices) ? wo.choices : [], wo, pos: cols.parentPos[i]
       });
     });
     Object.values(s).forEach(a => a.sort((x, y) => x.pos - y.pos));
@@ -583,9 +596,10 @@ function renderForm() {
   const head = headerHtml();
   if (!config.fields.length) {
     app.innerHTML = band + head + `<main class="dn-page"><div class="fr-callout">
-      <h1 class="fr-callout__title fr-h5">Ce formulaire n’est pas encore configuré</h1>
-      ${remote ? '' : `<p class="fr-callout__text fr-text--md">Cliquez sur « Ouvrir la configuration » dans le panneau de droite de Grist, ou sur le bouton ci-dessous.</p>
-      <button class="fr-btn fr-mt-2w fr-icon-settings-5-line fr-btn--icon-left" data-act="configure">Configurer le formulaire</button>`}</div></main>`;
+      <h1 class="fr-callout__title fr-h5">${formsList.length ? 'Aucun formulaire sélectionné' : 'Aucun formulaire pour le moment'}</h1>
+      ${remote ? '' : `<p class="fr-callout__text fr-text--md">${formsList.length ? 'Choisissez un formulaire dans la configuration, ou posez ce widget sur la table « Formulaires » : la ligne sélectionnée choisit le formulaire affiché.' : 'L’assistant vous guide en quatre étapes : nom, formation choisie, questions, récapitulatif.'}</p>
+      <button class="fr-btn fr-mt-2w fr-icon-add-line fr-btn--icon-left" data-act="newFormFromEmpty">Créer un formulaire</button>
+      <button class="fr-btn fr-btn--secondary fr-mt-2w fr-icon-settings-5-line fr-btn--icon-left" data-act="configure">Ouvrir la configuration</button>`}</div></main>`;
     return;
   }
   const title = esc1(formTitle());
@@ -1115,7 +1129,7 @@ async function onSubmit(e) {
   });
   if (mode === 'preview') { showSuccess(null, record); return; }
   if (!inGrist) { console.info('[démo] enregistrement', record); showSuccess(Math.floor(Math.random() * 900) + 100, record); return; }
-  if (!targetTableId) { showFormErrors({}, 'Table de destination introuvable.'); return; }
+  if (!targetTableId || !schema[targetTableId]) { showFormErrors({}, 'La table des réponses n’existe pas encore : publiez le formulaire (ou utilisez l’aperçu).'); return; }
   setBusy(true);
   try {
     const res = await grist.docApi.applyUserActions([['AddRecord', targetTableId, null, record]]);
@@ -1185,21 +1199,23 @@ async function openBuilder() {
   if (!selectedFieldId && config.fields.length) selectedFieldId = config.fields[0].id;
   renderBuilder();
   await loadSchema();
+  await refreshForms();
+  if (inGrist && !formRowId && !formsList.length && !config.fields.length) { startWizard(); return; }
   if (mode === 'builder') renderBuilder();
 }
 
 function renderBuilder() {
   ctlSeq = 0;
-  const tabs = [['general', 'Général'], ['fields', `Champs (${config.fields.length})`],
-    ['lookups', `Préremplissage (${config.lookups.length})`], ['publish', 'Publication & QR code'], ['json', 'Import / export']];
+  const nQ = config.fields.filter(isInput).length;
+  const tabs = [['general', '1. Formulaire'], ['lookups', '2. Formation choisie'], ['fields', `3. Questions (${nQ})`],
+    ['publish', '4. Publication'], ['json', 'Avancé']];
   const body = { general: generalTab, fields: fieldsTab, lookups: lookupsTab, publish: publishTab, json: jsonTab }[tab]();
 
   app.innerHTML = `<div class="bld">
     <div class="bld-top">
-      <div><p class="fr-h5">Configuration du formulaire</p>
-        <p class="fr-text--xs fr-text-mention--grey">Enregistré comme brouillon dans la table « ${FORMS_TABLE} » · « Publier » met en ligne.</p>
-        <p class="fr-text--xs fr-text-mention--grey">Table modèle (et réponses dans Grist) : <strong>${esc(targetTableId || '…')}</strong>${config.responsesDocId
-          ? ` · réponses publiques : document <strong>${esc(config.responsesDocId)}</strong>, table <strong>${esc(config.responsesTableId || targetTableId || '')}</strong>` : ''}</p></div>
+      <div class="bld-forms">${formsSelectHtml()}
+        <button type="button" class="fr-btn fr-btn--sm fr-icon-add-line fr-btn--icon-left" data-act="newForm">Nouveau formulaire</button>
+        <button type="button" class="fr-btn fr-btn--sm fr-btn--tertiary fr-icon-clipboard-line fr-btn--icon-left" data-act="dupForm">Dupliquer</button></div>
       <div class="bld-actions">
         <span id="dirty-badge">${dirtyBadge()}</span>
         <button class="fr-btn fr-btn--sm fr-btn--tertiary fr-icon-eye-line fr-btn--icon-left" data-act="preview">Aperçu</button>
@@ -1209,6 +1225,7 @@ function renderBuilder() {
     </div>
     <nav class="bld-tabs" aria-label="Sections de la configuration">${tabs.map(([k, l]) =>
       `<button type="button" class="bld-tab${k === tab ? ' is-active' : ''}" data-act="tab" data-tab="${k}"${k === tab ? ' aria-current="true"' : ''}>${esc(l)}</button>`).join('')}</nav>
+    <p class="fr-text--xs fr-text-mention--grey">${formStatusText()}</p>
     ${body}
   </div>`;
   if (tab === 'publish') { updateQR(); renderCodes(); }
@@ -1225,12 +1242,20 @@ function generalTab() {
   return `<div class="bld-cols2">
     <div>
       <p class="bld-h">Textes du formulaire</p>
-      ${inputCtl('Titre', 'title', config.title, { hint: 'Peut être remplacé par une colonne de la ligne choisie (onglet Préremplissage).' })}
+      ${inputCtl('Identifiant du formulaire', 'slug', config.slug, { hint: 'Utilisé dans les liens. Lettres minuscules, chiffres et tirets.', placeholder: slugify(formTitle()), attrs: ' spellcheck="false"' })}
+      ${inputCtl('Titre', 'title', config.title, { hint: 'Peut être remplacé par une colonne de la ligne choisie (onglet « 2. Formation choisie »).' })}
       ${inputCtl('Sous-titre (facultatif)', 'subtitle', config.subtitle)}
       ${textareaCtl('Introduction (facultatif)', 'description', config.description, { rows: 5, md: true })}
       ${inputCtl('Libellé du bouton d’envoi', 'submitLabel', config.submitLabel)}
       ${inputCtl('Titre du message de confirmation', 'successTitle', config.successTitle, { content: true })}
       ${textareaCtl('Message de confirmation', 'successMessage', config.successMessage, { rows: 3, content: true, md: true })}
+
+      <p class="bld-h fr-mt-4w">Où sont enregistrées les réponses</p>
+      ${selectCtl('Table des réponses', 'targetTableId',
+        [['', `Nouvelle table « ${autoTableName()} », créée à la publication`],
+          ...Object.keys(schema).filter(t => t !== FORMS_TABLE && !lookupTables().includes(t)).sort().map(t => [t, `Table existante : ${t}`])],
+        config.targetTableId || '', { hint: 'Les colonnes manquantes sont ajoutées automatiquement à la publication, d’après les questions.' })}
+      ${inGrist ? `<button type="button" class="fr-btn fr-btn--sm fr-btn--tertiary fr-icon-table-line fr-btn--icon-left" data-act="makeTable">${schema[targetTableId] ? 'Ajouter maintenant les colonnes manquantes' : 'Créer la table maintenant'}</button>` : ''}
     </div>
     <div>
       <p class="bld-h">Logo</p>
@@ -1264,7 +1289,7 @@ function fieldsTab() {
         ${selectCtl('Ajouter un élément', 'ui.addType', Object.entries(TYPES), 'text')}
         <button type="button" class="fr-btn fr-btn--sm fr-icon-add-line fr-btn--icon-left" data-act="add">Ajouter</button>
       </div>
-      <button type="button" class="fr-btn fr-btn--sm fr-btn--tertiary fr-icon-download-line fr-btn--icon-left fr-mb-2w" data-act="import">Importer les colonnes de la table</button>
+      ${writableCols().length ? `<button type="button" class="fr-btn fr-btn--sm fr-btn--tertiary fr-icon-download-line fr-btn--icon-left fr-mb-2w" data-act="import">Importer les colonnes de la table ${esc(targetTableId)}</button>` : ''}
       <div>${list}</div>
     </div>
     <div class="bld-editor">${editor}</div>
@@ -1285,7 +1310,8 @@ function listItemHtml(f, i) {
   if (f.condition && f.condition.fieldId) flags.push('conditionnel');
   if (config.lookups.some(l => l.triggerFieldId === f.id)) flags.push('déclenche un préremplissage');
   if (config.lookups.some(l => l.mappings.some(m => m.fieldId === f.id))) flags.push('prérempli');
-  if (isInput(f) && !f.colId) flags.push('non enregistré');
+  if (isInput(f) && f.noSave) flags.push('non enregistré');
+  else if (isInput(f) && (!f.colId || !colsOf(targetTableId).some(c => c.colId === f.colId))) flags.push('nouvelle colonne');
   const cls = f.type === 'section' ? ' bld-li--section' : f.type === 'contenu' ? ' bld-li--text' : '';
   return `<div class="bld-li${cls}${f.id === selectedFieldId ? ' is-active' : ''}" data-act="sel" data-id="${f.id}">
     <div class="bld-li__main"><span class="bld-li__type">${esc(TYPES[f.type] || f.type)}</span>
@@ -1305,7 +1331,7 @@ function editorHtml(f, i) {
     h += selectCtl('Présentation', p + 'style', BLOCK_STYLES, f.style);
     h += inputCtl('Titre du bloc (facultatif)', p + 'label', f.label);
     h += textareaCtl('Texte', p + 'hint', f.hint, { rows: 8, md: true,
-      hint: isMappedTarget(f.id) ? 'Ce bloc est rempli par la ligne choisie (onglet Préremplissage) : laissez ce texte vide, ou mettez un texte affiché tant qu’aucun choix n’est fait.' : '' });
+      hint: isMappedTarget(f.id) ? 'Ce bloc est rempli par la ligne choisie (onglet « 2. Formation choisie ») : laissez ce texte vide, ou mettez un texte affiché tant qu’aucun choix n’est fait.' : '' });
   } else if (f.type === 'section') {
     h += inputCtl('Titre de la section', p + 'label', f.label);
     h += textareaCtl('Texte d’introduction (facultatif)', p + 'hint', f.hint, { rows: 4, md: true });
@@ -1314,9 +1340,10 @@ function editorHtml(f, i) {
     h += inputCtl('Texte d’aide (facultatif)', p + 'hint', f.hint, { hint: 'Affiché sous le libellé, en gris.', content: true });
     const cols = writableCols();
     const col = cols.find(c => c.colId === f.colId);
-    const colOpts = [['', '— Ne pas enregistrer —'], ...cols.map(c => [c.colId, `${c.label} (${c.type})`])];
-    if (f.colId && !col) colOpts.push([f.colId, f.colId + ' (introuvable)']);
-    h += selectCtl('Colonne Grist de destination', p + 'colId', colOpts, f.colId, { hint: `Table ${esc(targetTableId || '?')}` });
+    const colOpts = [['', '➕ Nouvelle colonne, créée à la publication'], ['__none__', '— Ne pas enregistrer cette réponse —'], ...cols.map(c => [c.colId, `${c.label} (${c.type})`])];
+    if (f.colId && !col) colOpts.push([f.colId, f.colId + ' (sera créée à la publication)']);
+    h += selectCtl('Colonne où enregistrer la réponse', p + 'colId', colOpts, f.noSave ? '__none__' : f.colId,
+      { hint: targetTableId ? `Table ${esc(targetTableId)}` : `Table créée à la publication : ${esc(autoTableName())}` });
     if (col && /^Ref/.test(col.type)) h += '<p class="fr-message fr-message--warning fr-mb-2w">Les colonnes de type Référence ne sont pas gérées : utilisez une colonne Texte.</p>';
     if (f.colId && config.fields.some(o => o !== f && o.colId === f.colId)) h += '<p class="fr-message fr-message--warning fr-mb-2w">Un autre champ écrit déjà dans cette colonne.</p>';
     h += checkCtl('Champ obligatoire', p + 'required', f.required);
@@ -1333,7 +1360,7 @@ function editorHtml(f, i) {
     if (f.type === 'tableselect') {
       const rule = config.lookups.find(l => l.triggerFieldId === f.id);
       h += rule
-        ? `<div class="fr-callout fr-callout--sm fr-mb-3w"><p class="fr-callout__text fr-text--sm">Liste issue de la table <strong>${esc(rule.tableId || '?')}</strong>, colonne <strong>${esc(rule.keyColId || '?')}</strong>${rule.labelColId ? `, avec <strong>${esc(rule.labelColId)}</strong> en complément` : ''}. Réglages et correspondances dans l’onglet Préremplissage.</p></div>`
+        ? `<div class="fr-callout fr-callout--sm fr-mb-3w"><p class="fr-callout__text fr-text--sm">Liste issue de la table <strong>${esc(rule.tableId || '?')}</strong>, colonne <strong>${esc(rule.keyColId || '?')}</strong>${rule.labelColId ? `, avec <strong>${esc(rule.labelColId)}</strong> en complément` : ''}. Réglages et correspondances dans l’onglet « 2. Formation choisie ».</p></div>`
         : `<div class="fr-callout fr-callout--sm fr-mb-3w"><p class="fr-callout__text fr-text--sm">Ce champ propose les valeurs d’une table Grist. Créez la règle qui indique la table et les correspondances.</p>
            <button type="button" class="fr-btn fr-btn--sm fr-mt-1w" data-act="ruleFor" data-id="${f.id}">Créer la règle de préremplissage</button></div>`;
     }
@@ -1383,6 +1410,12 @@ function conditionHtml(f, i, p) {
 /* ---------- onglet Préremplissage ---------- */
 function lookupsTab() {
   const tables = Object.keys(schema).sort();
+  if (!config.lookups.length) {
+    return `<div class="fr-callout fr-mb-4w"><h3 class="fr-callout__title fr-h6">Le formulaire s’adapte-t-il à une formation (ou un stage, une session…) ?</h3>
+      <p class="fr-callout__text fr-text--md">Si oui, l’usager choisit la formation dans une liste avec recherche, et le formulaire affiche son intitulé,
+      ses dates, ses objectifs… lus dans une table Grist. Sinon, passez directement à l’onglet « 3. Questions ».</p>
+      <button type="button" class="fr-btn fr-mt-2w fr-icon-links-line fr-btn--icon-left" data-act="linkTable">Relier le formulaire à une table</button></div>`;
+  }
   const intro = `<div class="fr-callout fr-mb-4w"><p class="fr-callout__text fr-text--md">
     Quand l’usager choisit un code (par exemple celui de sa formation), le formulaire retrouve la ligne correspondante
     dans une table Grist et s’adapte : titre, sections, blocs de texte et champs prennent les valeurs de cette ligne.
@@ -1404,6 +1437,8 @@ function lookupHtml(l, i, tables) {
     <div class="bld-card__head"><h3 class="fr-h6 fr-mb-0">Règle ${i + 1}</h3>
       <button type="button" class="fr-btn fr-btn--sm fr-btn--tertiary-no-outline fr-icon-delete-line fr-btn--icon-left" data-act="delLookup" data-i="${i}">Supprimer la règle</button></div>
 
+    ${l.triggerFieldId && config.lookups.some((o, k) => k !== i && o.triggerFieldId === l.triggerFieldId)
+      ? `<div class="fr-alert fr-alert--warning fr-alert--sm fr-mb-2w"><p>Une autre règle part du même champ. Gardez-en une seule : chaque règle fait sa propre recherche, et une règle incomplète bloque l’envoi du formulaire.</p></div>` : ''}
     ${step(1, 'Où trouver les informations', 'Le code choisi ou saisi dans le formulaire est cherché dans une table Grist.')}
     <div class="bld-row3">
       ${selectCtl('Champ du formulaire qui contient le code', p + 'triggerFieldId', [['', '— choisir —'], ...inputs.map(f => [f.id, resolve(f.label)])], l.triggerFieldId)}
@@ -1468,7 +1503,7 @@ function publishTab() {
     <div>
       <p class="bld-h">Formulaire public (recommandé)</p>
       <p class="fr-text--sm">Le formulaire est servi par une page hébergée hors de Grist et par le relais n8n : les répondants n’ont aucun accès au document.</p>
-      ${inputCtl('Identifiant du formulaire', 'slug', config.slug, { hint: 'Lettres minuscules, chiffres et tirets. Ex. : inscription-formation', placeholder: slugify(formTitle()), attrs: ' spellcheck="false"' })}
+      <p class="fr-text--sm">Identifiant du formulaire : <strong>${esc(config.slug || '—')}</strong> (modifiable dans l’onglet 1).</p>
       ${inputCtl('Adresse du webhook n8n', 'apiUrl', config.apiUrl, { type: 'url', placeholder: 'https://n8n.exemple.gouv.fr/webhook/formulaire-dsfr' })}
       ${inputCtl('Adresse de la page publique', 'publicUrl', config.publicUrl, { type: 'url', placeholder: 'https://votre-compte.github.io/formulaires/', hint: 'Adresse où est hébergé ce même fichier index.html.' })}
       <p class="fr-text--sm fr-mb-1w"><strong>Lien public</strong></p>
@@ -1485,8 +1520,8 @@ function publishTab() {
       <p class="bld-h fr-mt-4w">Destination des réponses publiques</p>
       ${inputCtl('Document des réponses (facultatif)', 'responsesDocId', config.responsesDocId, { attrs: ' spellcheck="false" data-rerender="1"',
         hint: 'Identifiant d’un autre document Grist, visible dans son adresse : /doc/<strong>identifiant</strong>. Laissez vide pour enregistrer dans ce document.' })}
-      ${config.responsesDocId ? inputCtl('Table des réponses dans ce document', 'responsesTableId', config.responsesTableId, { placeholder: targetTableId || '', attrs: ' spellcheck="false" data-rerender="1"',
-        hint: `Ses colonnes doivent porter les mêmes identifiants que la table ${esc(targetTableId || '')} de ce document, qui sert de modèle.` }) : ''}
+      ${config.responsesDocId ? inputCtl('Table des réponses dans ce document', 'responsesTableId', config.responsesTableId, { placeholder: targetTableId || autoTableName(), attrs: ' spellcheck="false" data-rerender="1"',
+        hint: `Ses colonnes doivent porter les mêmes identifiants que la table ${esc(targetTableId || autoTableName())} de ce document, qui sert de modèle (créée à la publication).` }) : ''}
 
       <p class="bld-h fr-mt-4w">QR code</p>
       ${checkCtl('Afficher aussi le QR code en haut du formulaire', 'showQrTop', config.showQrTop, 'Pratique sur un écran ou un ordinateur partagé : on scanne pour continuer sur son téléphone. Le QR code suit le code saisi. Il est masqué sur les petits écrans.')}
@@ -1676,6 +1711,7 @@ function setPath(obj, path, val) {
 }
 function applyBind(el) {
   const bind = el.dataset.bind;
+  let m0;
   if (bind.startsWith('ui.')) return false;
   let val = el.type === 'checkbox' ? el.checked
     : el.dataset.kind === 'lines' ? el.value.split('\n').map(s => s.trim()).filter(Boolean)
@@ -1683,8 +1719,15 @@ function applyBind(el) {
     : el.value;
   if (bind === 'urlParam') val = String(val).toLowerCase().replace(/[^a-z0-9_-]/g, '');
   if (bind === 'responsesDocId' || bind === 'responsesTableId') val = String(val).trim();
+  if ((m0 = /^fields\.(\d+)\.colId$/.exec(bind))) {
+    const f = config.fields[+m0[1]];
+    f.noSave = val === '__none__';
+    f.colId = f.noSave ? '' : val;
+    return true;
+  }
   if (bind === 'slug') val = String(val).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9-]+/g, '-');
   setPath(config, bind, val);
+  if (bind === 'targetTableId') targetTableId = val || '';
   let m;
   if ((m = /^fields\.(\d+)\.type$/.exec(bind))) fixField(config.fields[+m[1]]);
   if ((m = /^lookups\.(\d+)\.mappings\.(\d+)\.colId$/.exec(bind))) {
@@ -1808,7 +1851,7 @@ async function findFormRow() {
   const d = await readForms();
   if (!d) return null;
   let i = formRowId ? (d.id || []).indexOf(formRowId) : -1;
-  if (i < 0) i = (d.Table || []).findIndex(t => t === targetTableId);
+  if (i < 0 && !formRowId && widgetTableId && widgetTableId !== FORMS_TABLE) i = (d.Table || []).findIndex(t => t === widgetTableId);
   if (i < 0) return null;
   return { id: d.id[i], draft: (d.Brouillon || [])[i] || '', pub: (d.Config || [])[i] || '', all: d };
 }
@@ -1826,8 +1869,7 @@ async function loadFromTable() {
 async function saveOptions() {
   if (!inGrist) { savedJson = JSON.stringify(config); return; }
   await ensureFormsTable();
-  if (!formRowId) { const r = await findFormRow(); formRowId = r ? r.id : null; }
-  config.targetTableId = targetTableId;
+  config.targetTableId = targetTableId || '';
   const fields = { Brouillon: JSON.stringify(config), Titre: formTitle(), Table: targetTableId || '', Slug: config.slug || '', Mis_a_jour: Date.now() / 1000 };
   if (formRowId) await grist.docApi.applyUserActions([['UpdateRecord', FORMS_TABLE, formRowId, fields]]);
   else {
@@ -1835,6 +1877,252 @@ async function saveOptions() {
     formRowId = res && res.retValues ? res.retValues[0] : null;
   }
   savedJson = JSON.stringify(config);
+}
+
+/* =====================================================================
+   PLUSIEURS FORMULAIRES · TABLE DE RÉPONSES AUTOMATIQUE · ASSISTANT
+   ===================================================================== */
+const lookupTables = () => [...new Set(config.lookups.map(l => l.tableId).filter(Boolean))];
+const toTableId = s => {
+  let id = String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  if (!/^[A-Za-z]/.test(id)) id = 'T_' + id;
+  return id.charAt(0).toUpperCase() + id.slice(1);
+};
+const autoTableName = () => toTableId('Reponses_' + (config.slug || slugify(formTitle()) || 'formulaire'));
+const STOP = new Set('le la les l un une des de du d au aux a et ou en dans sur pour par avec vous votre vos ce cette ces cet est sont etes avez-vous il elle on y ne pas qu que qui quoi quel quelle quels quelles se sa son ses leur leurs nous je j me m t s c'.split(' '));
+function colIdFrom(label, used) {
+  const words = String(label || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/[^A-Za-z0-9]+/).filter(Boolean);
+  const keep = words.filter(w => !STOP.has(w.toLowerCase()));
+  let id = (keep.length ? keep : words).slice(0, 4).join('_').slice(0, 40);
+  if (!id) id = 'Reponse';
+  if (!/^[A-Za-z]/.test(id)) id = 'C_' + id;
+  id = id.charAt(0).toUpperCase() + id.slice(1);
+  let k = id, n = 2;
+  while (used.has(k.toLowerCase())) k = id + '_' + n++;
+  used.add(k.toLowerCase());
+  return k;
+}
+function gristTypeFor(f) {
+  switch (f.type) {
+    case 'number': return ['Numeric', null];
+    case 'date': return ['Date', null];
+    case 'checkbox': return ['Bool', null];
+    case 'select': case 'radio': return ['Choice', { choices: f.options || [] }];
+    case 'yesno': return ['Choice', { choices: ['Oui', 'Non'] }];
+    case 'checkboxes': return ['ChoiceList', { choices: f.options || [] }];
+    default: return ['Text', null];
+  }
+}
+// Crée la table des réponses si besoin et ajoute les colonnes manquantes (types déduits des questions)
+async function ensureResponseTable() {
+  if (!inGrist) return 0;
+  let t = config.targetTableId;
+  const created = !t || !schema[t];
+  if (created) {
+    const want = t || autoTableName();
+    const res = await grist.docApi.applyUserActions([['AddTable', want,
+      [{ id: 'Recu_le', type: 'DateTime:Europe/Paris', isFormula: false, formula: 'NOW()' }]]]);
+    t = (res && res.retValues && res.retValues[0] && res.retValues[0].table_id) || want;
+    await loadSchema();
+  }
+  config.targetTableId = t; targetTableId = t;
+  const cols = colsOf(t);
+  const used = new Set(cols.map(c => c.colId.toLowerCase()));
+  const acts = [], targets = [];
+  config.fields.filter(f => isInput(f) && !f.noSave).forEach(f => {
+    const col = cols.find(c => c.colId === f.colId);
+    const [type, wo] = gristTypeFor(f);
+    if (!col) {
+      const colId = f.colId && !used.has(f.colId.toLowerCase()) ? (used.add(f.colId.toLowerCase()), f.colId) : colIdFrom(f.label, used);
+      acts.push(['AddColumn', t, colId, Object.assign({ type, isFormula: false, label: String(f.label || colId).slice(0, 80), untieColIdFromLabel: true },
+        wo ? { widgetOptions: JSON.stringify(wo) } : {})]);
+      targets.push([f, colId]);
+    } else if (wo && /^Choice/.test(col.type)) {
+      const missing = (wo.choices || []).filter(c => !(col.choices || []).includes(c));
+      if (missing.length) acts.push(['ModifyColumn', t, col.colId, { widgetOptions: JSON.stringify(Object.assign({}, col.wo || {}, { choices: (col.choices || []).concat(missing) })) }]);
+    }
+  });
+  if (acts.length) {
+    const res = await grist.docApi.applyUserActions(acts);
+    let k = 0;
+    acts.forEach((a, i) => {
+      if (a[0] !== 'AddColumn') return;
+      const rv = res && res.retValues ? res.retValues[i] : null;
+      targets[k][0].colId = (rv && rv.colId) || targets[k][1];
+      k++;
+    });
+    await loadSchema();
+  }
+  return { created, added: targets.length };
+}
+
+async function refreshForms() {
+  formsList = [];
+  if (!inGrist) { formsList = [{ id: 1, title: formTitle(), slug: config.slug, state: 'publié', cfg: config }]; return; }
+  const d = await readForms().catch(() => null);
+  if (!d) return;
+  (d.id || []).forEach((id, i) => {
+    let cfg = null;
+    try { cfg = JSON.parse((d.Brouillon || [])[i] || (d.Config || [])[i] || 'null'); } catch (e) { /* ignore */ }
+    const pub = (d.Config || [])[i] || '', draft = (d.Brouillon || [])[i] || '';
+    const state = !pub ? 'brouillon' : !(d.Publie || [])[i] ? 'suspendu' : (draft && draft !== pub ? 'modifications non publiées' : 'publié');
+    formsList.push({ id, title: (d.Titre || [])[i] || (cfg && cfg.title) || 'Sans titre', slug: (d.Slug || [])[i] || '', state, cfg,
+      table: (d.Table || [])[i] || '', at: (d.Mis_a_jour || [])[i] || 0 });
+  });
+}
+function formsSelectHtml() {
+  const opts = formsList.map(f => [f.id, `${f.title}${f.slug ? ' — ' + f.slug : ''} (${f.state})`]);
+  if (!formRowId) opts.unshift(['', `${formTitle() || 'Nouveau formulaire'} (non enregistré)`]);
+  const id = ctlId();
+  return `<div class="fr-select-group"><label class="fr-label" for="${id}">Formulaire</label>
+    <select class="fr-select" id="${id}" data-forms>${opts.map(([v, l]) => opt(v, l, String(v) === String(formRowId || ''))).join('')}</select></div>`;
+}
+function formStatusText() {
+  const t = targetTableId && schema[targetTableId] ? `table « ${targetTableId} »` : `table « ${autoTableName()} » (créée à la publication)`;
+  const pub = config.responsesDocId ? ` · réponses publiques : document ${config.responsesDocId}, table ${config.responsesTableId || targetTableId || autoTableName()}` : '';
+  return `Brouillon enregistré dans la table « ${FORMS_TABLE} » · « Publier » met en ligne · réponses : ${t}${pub}`;
+}
+// Adresses n8n / page publique, en-tête et logo : repris du formulaire le plus récent du document
+function docDefaults() {
+  const src = formsList.filter(f => f.cfg && (f.cfg.apiUrl || f.cfg.publicUrl)).sort((a, b) => (b.at || 0) - (a.at || 0))[0];
+  if (!src) return {};
+  const c = src.cfg;
+  return { apiUrl: c.apiUrl || '', publicUrl: c.publicUrl || '', header: c.header, logo: c.logo, responsesDocId: c.responsesDocId || '' };
+}
+async function openForm(id) {
+  const f = formsList.find(x => String(x.id) === String(id));
+  if (!f) return false;
+  formRowId = f.id;
+  config = normalizeConfig(f.cfg || {});
+  targetTableId = config.targetTableId || (f.table && f.table !== FORMS_TABLE ? f.table : '');
+  config.targetTableId = targetTableId;
+  savedJson = JSON.stringify(config);
+  selectedFieldId = null;
+  resetFormState();
+  return true;
+}
+
+/* ---------- modèles de questions ---------- */
+const TEMPLATES = {
+  evaluation: { label: 'Évaluation de formation', desc: 'Satisfaction, objectifs atteints, points forts, améliorations, recommandation.',
+    build: F => {
+      const s = F('section', 'Votre avis');
+      const sat = F('radio', 'Globalement, êtes-vous satisfait de cette formation ?', { required: true, layout: '2', options: ['Très satisfait', 'Satisfait', 'Peu satisfait', 'Pas satisfait'] });
+      const obj = F('radio', 'Les objectifs ont-ils été atteints ?', { required: true, layout: 'inline', options: ['Oui', 'En partie', 'Non'] });
+      const plus = F('textarea', 'Qu’avez-vous le plus apprécié ?', {});
+      const moins = F('textarea', 'Que faudrait-il améliorer ?', { required: true, condition: { fieldId: sat.id, op: 'neq', value: 'Très satisfait' } });
+      const reco = F('yesno', 'Recommanderiez-vous cette formation à un collègue ?', { required: true });
+      return [s, sat, obj, plus, moins, reco];
+    } },
+  inscription: { label: 'Inscription', desc: 'Coordonnées, hébergement, contraintes, consentement.',
+    build: F => {
+      const s1 = F('section', 'Vos coordonnées');
+      const nom = F('text', 'Nom', { required: true }), prenom = F('text', 'Prénom', { required: true });
+      const mail = F('email', 'Adresse électronique', { required: true }), etab = F('text', 'Établissement', {});
+      const s2 = F('section', 'Organisation');
+      const heb = F('yesno', 'Avez-vous besoin d’un hébergement ?', { required: true });
+      const contr = F('textarea', 'Précisez vos contraintes', { required: true, condition: { fieldId: heb.id, op: 'eq', value: 'Oui' } });
+      const ok = F('checkbox', 'J’accepte que mes données soient utilisées pour l’organisation de la formation', { required: true });
+      return [s1, nom, prenom, mail, etab, s2, heb, contr, ok];
+    } },
+  vide: { label: 'Formulaire vide', desc: 'Je compose moi-même les questions.', build: () => [] }
+};
+
+/* ---------- assistant de création ---------- */
+function startWizard() {
+  wiz = { step: 1, title: '', slug: '', slugTouched: false, useRef: '', table: '', keyCol: '', labelCol: '', showCols: [], openCol: '',
+    fieldLabel: 'Formation suivie', template: 'evaluation' };
+  mode = 'wizard';
+  renderWizard();
+}
+const WIZ_STEPS = ['Nom du formulaire', 'Formation choisie', 'Questions', 'Récapitulatif'];
+function renderWizard() {
+  ctlSeq = 0;
+  const w = wiz, n = WIZ_STEPS.length;
+  const tables = Object.keys(schema).filter(t => t !== FORMS_TABLE).sort();
+  const cols = colsOf(w.table);
+  const colOpts = first => [['', first], ...cols.map(c => [c.colId, c.label])];
+  const wsel = (label, key, options, val, hint) => { const id = ctlId(); return `<div class="fr-select-group"><label class="fr-label" for="${id}">${esc(label)}${hint ? `<span class="fr-hint-text">${hint}</span>` : ''}</label>
+    <select class="fr-select" id="${id}" data-wiz="${key}">${options.map(([v, l]) => opt(v, l, String(v) === String(val ?? ''))).join('')}</select></div>`; };
+  const winput = (label, key, val, o = {}) => { const id = ctlId(); return `<div class="fr-input-group"><label class="fr-label" for="${id}">${esc(label)}${o.hint ? `<span class="fr-hint-text">${o.hint}</span>` : ''}</label>
+    <input class="fr-input" id="${id}" data-wiz="${key}" value="${esc(val)}" placeholder="${esc(o.ph || '')}"${o.attrs || ''}></div>`; };
+  let body = '';
+  if (w.step === 1) {
+    body = winput('Titre du formulaire', 'title', w.title, { ph: 'Ex. : Évaluation de formation', attrs: ' autofocus' })
+      + winput('Identifiant (utilisé dans les liens)', 'slug', w.slug || slugify(w.title), { hint: 'Proposé à partir du titre. Lettres minuscules, chiffres et tirets.', attrs: ' spellcheck="false"' });
+  } else if (w.step === 2) {
+    body = `<fieldset class="fr-fieldset"><legend class="fr-fieldset__legend fr-fieldset__legend--regular">Le formulaire s’adapte-t-il à une formation (ou un stage, une session…) choisie dans une table Grist ?</legend>
+      ${[['oui', 'Oui : l’usager choisit la formation dans une liste, le formulaire affiche ses informations'], ['non', 'Non, le formulaire est le même pour tous']].map(([v, l]) =>
+        `<div class="fr-fieldset__element"><div class="fr-radio-group"><input type="radio" id="wr_${v}" name="wiz-ref" data-wiz="useRef" value="${v}"${w.useRef === v ? ' checked' : ''}><label class="fr-label" for="wr_${v}">${l}</label></div></div>`).join('')}</fieldset>`;
+    if (w.useRef === 'oui') {
+      body += `<div class="bld-row3">${wsel('Table des formations', 'table', [['', '— choisir —'], ...tables.map(t => [t, t])], w.table)}
+        ${w.table ? wsel('Colonne du code', 'keyCol', colOpts('— choisir —'), w.keyCol, 'Ex. Code Stage') : ''}
+        ${w.table ? wsel('Colonne de l’intitulé', 'labelCol', colOpts('— aucune —'), w.labelCol, 'Affiché dans la liste et comme titre du formulaire') : ''}</div>`;
+      if (w.table && w.keyCol) {
+        const others = cols.filter(c => ![w.keyCol, w.labelCol, 'Lien'].includes(c.colId) && c.type !== 'Bool');
+        body += winput('Libellé du champ de choix', 'fieldLabel', w.fieldLabel, { hint: 'La question posée à l’usager.' });
+        body += `<p class="fr-label fr-mt-3w fr-mb-1w">Informations de la formation à afficher dans le formulaire</p>
+          <p class="fr-hint-text fr-mb-2w">Chaque colonne cochée devient un bloc de texte rempli automatiquement.</p>
+          <div class="wiz-cols">${others.map(c => `<div class="fr-checkbox-group fr-mb-1w"><input type="checkbox" id="wc_${esc(c.colId)}" data-wiz-col="${esc(c.colId)}"${w.showCols.includes(c.colId) ? ' checked' : ''}>
+            <label class="fr-label" for="wc_${esc(c.colId)}">${esc(c.label)}</label></div>`).join('') || '<p class="fr-text--sm">Aucune autre colonne.</p>'}</div>`;
+        const bools = cols.filter(c => c.type === 'Bool');
+        if (bools.length) body += '<div class="fr-mt-3w"></div>' + wsel('Ne proposer que les formations dont cette case est cochée (facultatif)', 'openCol', [['', '— toutes les formations —'], ...bools.map(c => [c.colId, c.label])], w.openCol);
+      }
+    }
+  } else if (w.step === 3) {
+    body = `<p class="fr-text--sm">Partez d’un modèle : vous pourrez ensuite modifier, ajouter ou supprimer chaque question.</p>
+      <div class="wiz-tpl">${Object.entries(TEMPLATES).map(([k, t]) => `<label><input type="radio" name="wiz-tpl" class="fr-sr-only" data-wiz="template" value="${k}"${w.template === k ? ' checked' : ''}>
+        <span class="fr-text--lg fr-text--bold">${esc(t.label)}</span><br><span class="fr-text--sm">${esc(t.desc)}</span></label>`).join('')}</div>`;
+  } else {
+    const shown = w.showCols.map(c => (cols.find(x => x.colId === c) || {}).label || c);
+    body = `<ul class="fr-text--md">
+      <li><strong>Titre :</strong> ${esc(w.title)} <span class="fr-text--sm">(${esc(w.slug)})</span></li>
+      <li><strong>Formation choisie :</strong> ${w.useRef === 'oui' ? `dans la table <strong>${esc(w.table)}</strong>, par la colonne ${esc(w.keyCol)}${shown.length ? ` ; blocs affichés : ${esc(shown.join(', '))}` : ''}` : 'non'}</li>
+      <li><strong>Questions :</strong> ${esc(TEMPLATES[w.template].label)}</li>
+      <li><strong>Réponses :</strong> nouvelle table <strong>${esc(toTableId('Reponses_' + w.slug))}</strong>, créée à la publication avec une colonne par question</li></ul>
+      <p class="fr-text--sm">Après la création, vous arrivez sur les questions : relisez-les, puis publiez depuis l’onglet « 4. Publication ».</p>`;
+  }
+  const canNext = w.step === 1 ? !!(w.title.trim() && w.slug) : w.step === 2 ? (w.useRef === 'non' || (w.useRef === 'oui' && w.table && w.keyCol)) : true;
+  app.innerHTML = `<div class="wiz">
+    <div class="fr-stepper"><h2 class="fr-stepper__title">${esc(WIZ_STEPS[w.step - 1])}<span class="fr-stepper__state">Étape ${w.step} sur ${n}</span></h2>
+      <div class="fr-stepper__steps" data-fr-current-step="${w.step}" data-fr-steps="${n}"></div>
+      ${w.step < n ? `<p class="fr-stepper__details"><span class="fr-text--bold">Étape suivante :</span> ${esc(WIZ_STEPS[w.step])}</p>` : ''}</div>
+    ${body}
+    <div class="wiz-nav">
+      <button type="button" class="fr-btn fr-btn--secondary" data-act="${w.step === 1 ? 'wizCancel' : 'wizPrev'}">${w.step === 1 ? 'Annuler' : 'Précédent'}</button>
+      <button type="button" class="fr-btn${w.step === n ? ' fr-icon-check-line fr-btn--icon-left' : ''}" data-act="${w.step === n ? 'wizCreate' : 'wizNext'}"${canNext ? '' : ' disabled'}>${w.step === n ? 'Créer le formulaire' : 'Suivant'}</button>
+    </div></div>`;
+}
+function wizBuildConfig() {
+  const w = wiz, d = docDefaults();
+  const F = (type, label, extra) => Object.assign(newField(type, label), extra || {});
+  const fields = [], lookups = [];
+  let urlField = '';
+  if (w.useRef === 'oui') {
+    const code = F('tableselect', w.fieldLabel || 'Formation suivie', { required: true, hint: 'Tapez un code ou un mot de l’intitulé' });
+    fields.push(code);
+    urlField = code.id;
+    const maps = [];
+    if (w.labelCol) maps.push({ fieldId: '__title', colId: w.labelCol, label: (colsOf(w.table).find(c => c.colId === w.labelCol) || {}).label || w.labelCol });
+    if (w.showCols.length) {
+      fields.push(F('section', 'La formation'));
+      w.showCols.forEach(cid => {
+        const c = colsOf(w.table).find(x => x.colId === cid) || { label: cid, type: '' };
+        const b = F('contenu', c.label, { style: 'paragraphe' });
+        fields.push(b);
+        maps.push({ fieldId: b.id, colId: cid, label: c.label, type: c.type });
+      });
+    }
+    lookups.push(Object.assign(newLookup(), { triggerFieldId: code.id, tableId: w.table, keyColId: w.keyCol, labelColId: w.labelCol,
+      openColId: w.openCol, mustMatch: true, lock: true, mappings: maps }));
+  }
+  fields.push(...TEMPLATES[w.template].build(F));
+  if (w.template !== 'vide') fields.push(F('contenu', 'Vos données', { style: 'info', hint: 'Vos réponses sont utilisées uniquement pour améliorer nos formations.' }));
+  return normalizeConfig(Object.assign({
+    title: w.title.trim(), slug: w.slug, fields, lookups, urlField, targetTableId: '',
+    subtitle: w.useRef === 'oui' ? 'Choisissez la formation suivie : le questionnaire s’adapte.' : ''
+  }, d.header ? { header: d.header } : {}, d.logo ? { logo: d.logo } : {},
+  { apiUrl: d.apiUrl || '', publicUrl: d.publicUrl || '', responsesDocId: '' }));
 }
 
 const actions = {
@@ -1883,6 +2171,7 @@ const actions = {
     renderBuilder();
   },
   ruleFor: el => {
+    if (config.lookups.some(o => o.triggerFieldId === el.dataset.id)) { tab = 'lookups'; renderBuilder(); return; }
     const l = newLookup();
     l.triggerFieldId = el.dataset.id; l.mustMatch = true; l.lock = true;
     config.lookups.push(l);
@@ -1911,8 +2200,59 @@ const actions = {
     renderBuilder();
   },
   logoRemove: () => { config.logo.src = ''; renderBuilder(); },
+  newForm: () => {
+    if (isDirty() && !confirm('Des modifications ne sont pas enregistrées. Créer quand même un nouveau formulaire ?')) return;
+    startWizard();
+  },
+  dupForm: async () => {
+    if (isDirty() && !confirm('Des modifications ne sont pas enregistrées. Dupliquer quand même la dernière version enregistrée ?')) return;
+    const c = JSON.parse(savedJson && savedJson !== '{}' ? savedJson : JSON.stringify(config));
+    c.title = (c.title || '') + ' (copie)';
+    c.slug = slugify((c.slug || 'formulaire') + '-copie');
+    c.targetTableId = '';
+    c.fields.forEach(f => { f.colId = ''; });
+    formRowId = null;
+    config = normalizeConfig(c); targetTableId = '';
+    savedJson = '{}';
+    try { await saveOptions(); await refreshForms(); notify('Copie créée : ses réponses iront dans une nouvelle table.', 'success'); }
+    catch (e) { notify('Copie impossible : ' + (e.message || e), 'error'); }
+    tab = 'general'; renderBuilder();
+  },
+  linkTable: () => {
+    let f = config.fields.find(x => x.type === 'tableselect');
+    if (!f) { f = newField('tableselect', 'Formation suivie'); f.required = true; config.fields.unshift(f); }
+    const l = newLookup();
+    l.triggerFieldId = f.id; l.mustMatch = true; l.lock = true;
+    config.lookups.push(l);
+    if (!config.urlField) config.urlField = f.id;
+    renderBuilder();
+  },
+  makeTable: async () => {
+    try {
+      const r = await ensureResponseTable();
+      await saveOptions();
+      notify(r.created ? `Table « ${targetTableId} » créée avec ${r.added} colonne(s).` : r.added ? `${r.added} colonne(s) ajoutée(s) à « ${targetTableId} ».` : 'La table est déjà à jour.', 'success');
+    } catch (e) { console.error(e); notify('Création impossible : ' + (e.message || e), 'error'); }
+    renderBuilder();
+  },
+  wizCancel: () => { wiz = null; mode = 'builder'; renderBuilder(); },
+  wizPrev: () => { wiz.step--; renderWizard(); },
+  wizNext: () => { wiz.step++; renderWizard(); },
+  wizCreate: async () => {
+    config = wizBuildConfig();
+    formRowId = null; targetTableId = '';
+    savedJson = '{}';
+    wiz = null; mode = 'builder'; tab = 'fields';
+    selectedFieldId = (config.fields.find(f => isInput(f) && f.type !== 'tableselect') || config.fields[0] || {}).id || null;
+    try {
+      await saveOptions();
+      await refreshForms();
+      notify('Formulaire créé. Relisez les questions, puis publiez depuis l’onglet « 4. Publication ».', 'success');
+    } catch (e) { notify('Enregistrement impossible : ' + (e.message || e), 'error'); }
+    renderBuilder();
+  },
   save: async () => {
-    try { await saveOptions(); notify('Configuration enregistrée.', 'success'); }
+    try { await saveOptions(); await refreshForms(); notify('Configuration enregistrée.', 'success'); }
     catch (e) { console.error(e); notify('Échec de l’enregistrement : ' + (e.message || e) + ' (vérifiez vos droits d’édition).', 'error'); }
     if (mode === 'builder') renderBuilder();
   },
@@ -1920,10 +2260,10 @@ const actions = {
     if (!inGrist) { notify('La publication se fait depuis le widget dans Grist.', 'info'); return; }
     config.slug = slugify(config.slug || formTitle());
     if (!config.slug) { notify('Renseignez un identifiant de formulaire.', 'warning'); return; }
-    if (!targetTableId) { notify('Table de destination introuvable.', 'error'); return; }
     if (!config.apiUrl && !DEFAULT_API) notify('Pensez à renseigner l’adresse du webhook n8n : sans elle, le lien public ne fonctionne pas.', 'warning');
-    config.targetTableId = targetTableId;
     try {
+      const tb = await ensureResponseTable();
+      if (tb.created || tb.added) notify(tb.created ? `Table des réponses « ${targetTableId} » créée.` : `${tb.added} colonne(s) ajoutée(s) à « ${targetTableId} ».`, 'info');
       await saveOptions();
       const row = await findFormRow();
       const d = row.all;
@@ -1932,6 +2272,7 @@ const actions = {
       const first = !row.pub;
       await grist.docApi.applyUserActions([['UpdateRecord', FORMS_TABLE, row.id, Object.assign({ Config: JSON.stringify(config) }, first ? { Publie: true } : {})]]);
       notify(first ? 'Formulaire publié.' : 'Formulaire mis à jour.', 'success');
+      await refreshForms();
     } catch (e) {
       console.error(e);
       notify('Publication impossible : ' + (e.message || e), 'error');
@@ -1944,6 +2285,12 @@ const actions = {
     const lines = [];
     const add = (ok, t) => lines.push(`<li>${ok ? '✅' : '❌'} ${esc(t)}</li>`);
     const show = () => { box.innerHTML = `<ul class="fr-text--sm fr-mb-2w">${lines.join('')}</ul>`; };
+    const trig = {};
+    config.lookups.forEach(l => { if (l.triggerFieldId) trig[l.triggerFieldId] = (trig[l.triggerFieldId] || 0) + 1; });
+    Object.entries(trig).filter(([, n]) => n > 1).forEach(([fid, n]) =>
+      add(false, `${n} règles de préremplissage partent du champ « ${resolve((fieldById(fid) || {}).label || '?')} » : supprimez celles en trop (onglet « 2. Formation choisie »), puis publiez.`));
+    config.lookups.filter(l => l.triggerFieldId && (!l.tableId || !l.keyColId)).forEach(l =>
+      add(false, `Une règle de préremplissage est incomplète (table ou colonne du code manquante) : complétez-la ou supprimez-la.`));
     if (!api) { add(false, 'Adresse du webhook n8n non renseignée.'); return show(); }
     if (!config.slug) { add(false, 'Identifiant du formulaire non renseigné.'); return show(); }
     box.innerHTML = '<p class="fr-text--sm">Test en cours…</p>';
@@ -2005,6 +2352,7 @@ const actions = {
   preview: () => { mode = 'preview'; resetFormState(); renderForm(); window.scrollTo(0, 0); },
   back: () => { mode = 'builder'; renderBuilder(); },
   configure: () => openBuilder(),
+  newFormFromEmpty: async () => { await loadSchema(); await refreshForms(); startWizard(); },
   newResponse: () => { mode = 'form'; resetFormState(); renderForm(); window.scrollTo(0, 0); },
   qrPng: () => { const u = qrTarget(); if (u) download(qrPngDataUrl(u, 20), `qrcode-${slugify(formTitle()) || 'formulaire'}.png`); },
   qrSvg: () => {
@@ -2017,7 +2365,7 @@ const actions = {
   prepStages: async el => {
     const l = config.lookups[+el.dataset.i];
     if (!inGrist) { notify('Cette action se fait depuis le widget dans Grist.', 'info'); return; }
-    if (!config.slug || !publicLink()) { notify('Renseignez d’abord l’identifiant du formulaire et l’adresse de la page publique (onglet Publication).', 'warning'); tab = 'publish'; renderBuilder(); return; }
+    if (!config.slug || !publicLink()) { notify('Renseignez d’abord l’identifiant du formulaire et l’adresse de la page publique (onglet « 4. Publication »).', 'warning'); tab = 'publish'; renderBuilder(); return; }
     const t = l.tableId, has = id => colsOf(t).some(c => c.colId === id);
     try {
       const d = await fetchTableAny(t);
@@ -2082,8 +2430,19 @@ app.addEventListener('click', e => {
   if (fn) { e.preventDefault(); e.stopPropagation(); fn(el); }
 });
 app.addEventListener('input', e => {
-  if (mode !== 'builder') return;
   const el = e.target;
+  if (mode === 'wizard' && el.dataset.wiz && el.tagName === 'INPUT' && el.type !== 'radio') {
+    wiz[el.dataset.wiz] = el.value;
+    if (el.dataset.wiz === 'slug') wiz.slugTouched = true;
+    if (el.dataset.wiz === 'title' && !wiz.slugTouched) {
+      wiz.slug = slugify(el.value);
+      const sl = $('[data-wiz="slug"]'); if (sl) sl.value = wiz.slug;
+    }
+    const nx = $('[data-act="wizNext"]');
+    if (nx && wiz.step === 1) nx.disabled = !(wiz.title.trim() && wiz.slug);
+    return;
+  }
+  if (mode !== 'builder') return;
   if (el.dataset.test != null) { updateRegexTest(); return; }
   if (!el.dataset.bind || el.tagName === 'SELECT' || el.type === 'checkbox') return;
   if (applyBind(el)) refreshLight(el);
@@ -2092,8 +2451,32 @@ app.addEventListener('input', e => {
   if (/\.(regex|regexMessage)$/.test(el.dataset.bind)) updateRegexTest();
 });
 app.addEventListener('change', async e => {
-  if (mode !== 'builder') return;
   const el = e.target;
+  if (mode === 'wizard') {
+    if (el.dataset.wizCol != null) {
+      const c = el.dataset.wizCol;
+      wiz.showCols = el.checked ? [...new Set(wiz.showCols.concat(c))] : wiz.showCols.filter(x => x !== c);
+      return;
+    }
+    if (el.dataset.wiz && el.tagName === 'INPUT' && el.type !== 'radio') {
+      if (el.dataset.wiz === 'slug') { wiz.slug = slugify(el.value); wiz.slugTouched = true; el.value = wiz.slug; }
+      return;
+    }
+    if (el.dataset.wiz) {
+      wiz[el.dataset.wiz] = el.value;
+      if (el.dataset.wiz === 'table') { wiz.keyCol = ''; wiz.labelCol = ''; wiz.showCols = []; wiz.openCol = '';
+        const cs = colsOf(el.value), find = re => (cs.find(c => re.test(labelNorm(c.colId)) || re.test(labelNorm(c.label))) || {}).colId || '';
+        wiz.keyCol = find(/^code/); wiz.labelCol = find(/^(libelle|intitule|titre|nom)/); }
+      renderWizard();
+    }
+    return;
+  }
+  if (mode !== 'builder') return;
+  if (el.dataset.forms != null) {
+    if (isDirty() && !confirm('Des modifications ne sont pas enregistrées. Changer quand même de formulaire ?')) { el.value = String(formRowId || ''); return; }
+    if (await openForm(el.value)) { tab = 'general'; renderBuilder(); }
+    return;
+  }
   if (el.dataset.insert != null) {
     const target = $(`[data-bind="${el.dataset.insert}"]`);
     if (target && el.value) {
@@ -2152,7 +2535,8 @@ function demoConfig() {
         { fieldId: infos.id, colId: 'Lieu', label: 'Lieu' }, { fieldId: infos.id, colId: 'Formateur', label: 'Formateur' },
         { fieldId: objectifs.id, colId: 'Objectifs', label: 'Objectifs' }] }],
     urlField: code.id, urlParam: 'code', urlLock: true, urlLabelColId: 'Intitule', showQrTop: false,
-    slug: 'evaluation-formation', publicUrl: 'https://jlllyfish.github.io/sparrow-widget-form-dsfr/', apiUrl: 'https://n8n.exemple.gouv.fr/webhook/formulaire-dsfr'
+    slug: 'evaluation-formation', publicUrl: 'https://jlllyfish.github.io/sparrow-widget-form-dsfr/', apiUrl: 'https://n8n.exemple.gouv.fr/webhook/formulaire-dsfr',
+    targetTableId: 'Evaluations'
   });
 }
 
@@ -2178,14 +2562,25 @@ if (inGrist) {
   // Anciennes versions : configuration dans les options du widget (reprise automatique)
   const legacy = new Promise(res => { grist.onOptions(o => res(o && o.form ? o.form : null)); setTimeout(() => res(null), 2000); });
   app.innerHTML = '<main class="dn-page"><p class="fr-text--lg">Chargement du formulaire…</p></main>';
+  // Widget posé sur la table Formulaires : la ligne sélectionnée choisit le formulaire affiché
+  let firstRec = null;
+  const recP = new Promise(res => { setTimeout(() => res(null), 1500); grist.onRecord(r => { if (!firstRec) { firstRec = r; res(r); } else onFormRecord(r); }); });
+  async function onFormRecord(r) {
+    if (!r || widgetTableId !== FORMS_TABLE || String(r.id) === String(formRowId) || mode === 'builder' || mode === 'wizard') return;
+    await refreshForms();
+    if (await openForm(r.id)) renderForm();
+  }
   (async () => {
     await loadSchema();
-    const found = await loadFromTable();
-    if (!found) {
+    await refreshForms();
+    let id = null;
+    if (widgetTableId === FORMS_TABLE) { const r = await recP; id = r && r.id; }
+    if (!id && widgetTableId) { const f = formsList.find(x => x.table === widgetTableId); id = f && f.id; }
+    if (!id && formsList.length === 1) id = formsList[0].id;
+    if (!(id && await openForm(id))) {
       const old = await legacy;
-      if (old) { config = normalizeConfig(old); savedJson = '{}'; }   // à enregistrer pour migrer
+      if (old) { config = normalizeConfig(old); targetTableId = config.targetTableId || widgetTableId || ''; config.targetTableId = targetTableId; savedJson = '{}'; }
     }
-    await loadContents();
     if (mode === 'form') renderForm();
   })();
 } else if (PUBLIC_SLUG) {
@@ -2193,6 +2588,7 @@ if (inGrist) {
 } else {
   loadSchema().then(async () => {
     config = demoConfig();
+    targetTableId = config.targetTableId;
     savedJson = JSON.stringify(config);
     await loadContents();
     renderForm();
