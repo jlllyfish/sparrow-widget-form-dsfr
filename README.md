@@ -59,7 +59,8 @@ Pour obtenir des liens plus courts, inscrivez l'URL du webhook n8n dans la const
    - **2. Formation choisie** : la règle de préremplissage. Pour chaque colonne de la ligne choisie, l'élément qui l'affiche : titre, section, bloc de texte ou champ ;
      le **code** et l'**intitulé** du stage sont enregistrés avec chaque réponse (l'intitulé via un « champ caché »). Pour un formulaire créé avant cette version, cliquez sur « Les enregistrer dans les réponses », puis sur Publier ;
    - **3. Questions** : ajout, ordre, conditions d'affichage, validation. « Colonne où enregistrer la réponse » : *Nouvelle colonne* (créée à la publication), une colonne existante, ou *Ne pas enregistrer* ;
-   - **4. Publication** : adresses n8n et page publique, liens et QR codes par formation ;
+   - **4. Publication** : adresses n8n et page publique, lien général ;
+   - **5. Liens et QR codes** : un lien, un QR code et une affiche par formation ;
    - **Avancé** : import / export de la configuration.
 4. Le menu **Formulaire** en haut permet de passer d'un formulaire à l'autre ; **Dupliquer** crée une copie (avec sa propre table de réponses). Les adresses n8n et de la page publique, le logo et l'en-tête sont repris automatiquement du formulaire précédent.
 
