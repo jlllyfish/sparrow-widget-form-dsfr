@@ -106,6 +106,17 @@
     #btn-next,#btn-submit{flex:1;justify-content:center}
     .dn-steps .dn-q>.fr-label,.dn-steps .dn-q>.fr-fieldset__legend{font-size:1.25rem;line-height:1.75rem}
   }
+  .dn-ref .fr-tags-group{margin-bottom:.25rem}
+  .dn-ref .fr-tag{background-color:var(--background-action-low-blue-france);color:var(--text-action-high-blue-france)}
+  .dn-ref__dates{color:var(--text-mention-grey)}
+  .dn-foot-ref{margin:0;font-size:.875rem;line-height:1.5rem;color:var(--text-mention-grey);flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dn-foot-ref--on{color:var(--text-default-grey)}
+  .dn-stepnav .dn-foot-ref+#btn-prev{margin-left:0}
+  .bld-map__extra{display:flex;align-items:center;gap:.75rem;margin:-.25rem 0 .75rem 1rem}
+  .bld-map__extra .fr-label{margin:0;white-space:nowrap}
+  .bld-map__extra .fr-input{max-width:12rem;margin:0;padding-top:.25rem;padding-bottom:.25rem}
+  .bld-map__extra .fr-hint-text{margin:0}
+  @media (max-width:576px){.dn-stepnav{flex-wrap:wrap}.dn-stepnav .dn-foot-ref{flex-basis:100%;font-size:.8125rem}}
   .dn-loading{display:flex;align-items:center;gap:1rem;padding:3rem 0}
   .dn-spin{display:inline-block;width:1.5rem;height:1.5rem;border:3px solid var(--border-default-grey);border-top-color:var(--border-active-blue-france);border-radius:50%;animation:dnSpin .8s linear infinite;flex:none}
   .dn-spin--btn{width:1rem;height:1rem;border-width:2px;border-color:rgba(255,255,255,.4);border-top-color:#fff;margin-right:.5rem;vertical-align:-.125rem}
@@ -251,7 +262,9 @@ const BLOCK_STYLES = [
 ];
 const TEXTLIKE = ['text', 'textarea', 'email', 'tel', 'number', 'date', 'tableselect'];
 // Cibles spéciales du préremplissage (en-tête du formulaire)
-const HEAD_TARGETS = [['__title', 'Titre du formulaire'], ['__subtitle', 'Sous-titre du formulaire'], ['__description', 'Introduction du formulaire']];
+const HEAD_TARGETS = [['__title', 'Titre du formulaire'], ['__subtitle', 'Sous-titre du formulaire'], ['__description', 'Introduction du formulaire'],
+  ['__ref', 'Référence sous le titre (étiquettes)'], ['__start', 'Date de début (sous le titre)'], ['__end', 'Date de fin (sous le titre)']];
+const REF_TARGETS = ['__ref', '__start', '__end'];
 const OPS = [
   ['eq', 'est égal à'], ['neq', 'est différent de'], ['contains', 'contient'],
   ['notEmpty', 'est renseigné'], ['empty', 'n’est pas renseigné'],
@@ -450,7 +463,7 @@ function defaultConfig() {
     fields: [], lookups: [],
     slug: '', apiUrl: '', publicUrl: '', qrMode: 'autonome', qrUrl: '',
     responsesDocId: '', responsesTableId: '',
-    urlField: '', urlParam: 'code', urlLock: true, urlLabelColId: '', urlCodes: '', showQrTop: false, targetTableId: '', foundMessage: 'Référence stage trouvée.', presentation: 'page', allowNewResponse: false
+    urlField: '', urlParam: 'code', urlLock: true, urlLabelColId: '', urlCodes: '', showQrTop: false, targetTableId: '', foundMessage: 'Référence stage trouvée.', presentation: 'page', allowNewResponse: false, refInFooter: true, refPrefix: {}
   };
 }
 function newField(type, label) {
@@ -680,6 +693,8 @@ function renderForm() {
   let n = 0;
   const fieldsHtml = config.fields.map(f => fieldHtml(f, f.type === 'section' ? ++n : n)).join('');
   const steps = stepMode();
+  if (!remote) syncRefPrefix();
+  Object.keys(refState).forEach(k => { refState[k] = null; });
   app.innerHTML = band + head + `
   <main class="dn-page">
     <form id="dn-form" novalidate${steps ? ' class="dn-steps dn-at-intro"' : ''}>
@@ -687,6 +702,8 @@ function renderForm() {
       ${!(config.header && config.header.enabled) && config.logo && config.logo.src ? `<div class="dn-logo dn-intro-only">${logoImg()}</div>` : ''}
       <div class="dn-head"><div class="dn-head__text">
         <h1 class="fr-h2 fr-mb-2w" id="dn-title">${title}</h1>
+        <div class="dn-ref fr-mb-3w" id="dn-ref" hidden><ul class="fr-tags-group" id="dn-ref-tags"></ul>
+          <p class="dn-ref__dates fr-mb-0" id="dn-ref-dates" hidden><span class="fr-icon-calendar-line fr-icon--sm" aria-hidden="true"></span> <span></span></p></div>
         <p class="fr-text--lead fr-mb-3w" id="dn-subtitle"${subtitle ? '' : ' hidden'}>${subtitle}</p>
         <div class="dn-text fr-mb-3w" id="dn-desc"${desc ? '' : ' hidden'}>${desc}</div>
       </div>${config.showQrTop ? '<div class="dn-selfqr" id="self-qr" hidden></div>' : ''}</div>
@@ -698,12 +715,13 @@ function renderForm() {
     </form>
   </main>
   <footer class="dn-footer"><div class="dn-footer__inner">${steps ? `<div class="dn-stepnav">
+      <p class="dn-foot-ref" id="dn-foot-ref" hidden></p>
       <button type="button" class="fr-btn fr-btn--secondary fr-icon-arrow-left-line fr-btn--icon-left" data-act="stepPrev" id="btn-prev" hidden>Précédent</button>
       <span class="dn-stepnav__kbd dn-stepnav__ok" id="kbd-hint">ou appuyez sur Entrée ↵</span>
       <button type="button" class="fr-btn fr-icon-arrow-right-line fr-btn--icon-right" data-act="stepNext" id="btn-next">Commencer</button>
       <button type="submit" form="dn-form" class="fr-btn fr-icon-send-plane-line fr-btn--icon-right" id="btn-submit" hidden>${esc(config.submitLabel || 'Envoyer')}</button>
     </div>` : `
-    <p class="fr-text--xs fr-text-mention--grey">Vérifiez vos réponses avant de déposer.</p>
+    <p class="fr-text--xs fr-text-mention--grey dn-foot-ref" id="dn-foot-ref" data-default="Vérifiez vos réponses avant de déposer.">Vérifiez vos réponses avant de déposer.</p>
     <button type="submit" form="dn-form" class="fr-btn" id="btn-submit">${esc(config.submitLabel || 'Envoyer')}</button>`}
   </div></footer>`;
 
@@ -1302,6 +1320,57 @@ function groupMapped(entries) {
   });
   return out;
 }
+/* ---------- Référence sous le titre (code, session…) et dates, rappelées dans le pied de page ---------- */
+const refState = { __ref: null, __start: null, __end: null };
+// Date venue de Grist (secondes), au format AAAA-MM-JJ ou déjà rédigée → 03/12/2026
+function fmtShortDate(v) {
+  if (v == null || v === '') return '';
+  if (typeof v === 'number' || /^\d+(\.\d+)?$/.test(String(v))) {
+    const d = new Date(Number(v) * 1000);
+    return isNaN(d) ? String(v) : d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' });
+  }
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(v));
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : String(v);
+}
+// Texte placé avant chaque valeur (« Session ») : réglable par correspondance, recopié dans config.refPrefix
+function defaultRefPrefix(m) { const l = String(m.label || m.colId || ''); return /^code/i.test(l) ? '' : l.replace(/_/g, ' '); }
+function syncRefPrefix() {
+  const out = {};
+  config.lookups.forEach(l => (l.mappings || []).forEach(m => {
+    if (m.fieldId === '__ref' && (m.label || m.colId)) out[m.label || m.colId] = m.prefix != null ? m.prefix : defaultRefPrefix(m);
+  }));
+  config.refPrefix = out;
+}
+function refItems() {
+  const v = refState.__ref;
+  if (v == null) return [];
+  const pre = config.refPrefix || {};
+  const withP = (p, val) => (p ? p + ' ' : '') + val;
+  const lines = String(Array.isArray(v) ? displayText(v) : v).split('\n').filter(x => x.trim());
+  const re = /^\*\*(.+?)\*\* : (.*)$/;
+  if (lines.length && lines.every(x => re.test(x))) return lines.map(x => { const [, l, val] = re.exec(x); return withP(pre[l] != null ? pre[l] : l, val); });
+  const keys = Object.keys(pre);
+  return lines.map(x => withP(keys.length === 1 ? pre[keys[0]] : '', x));
+}
+function renderRef() {
+  const box = $('#dn-ref');
+  if (!box) return;
+  const items = refItems();
+  const a = fmtShortDate(refState.__start), b = fmtShortDate(refState.__end);
+  const dates = a && b ? (a === b ? `Le ${a}` : `Du ${a} au ${b}`) : a ? `À partir du ${a}` : b ? `Jusqu’au ${b}` : '';
+  $('#dn-ref-tags').innerHTML = items.map(t => `<li><p class="fr-tag">${esc(t)}</p></li>`).join('');
+  $('#dn-ref-tags').hidden = !items.length;
+  const dl = $('#dn-ref-dates');
+  dl.hidden = !dates; $('span:last-child', dl).textContent = dates;
+  box.hidden = !items.length && !dates;
+  const foot = $('#dn-foot-ref');
+  if (foot) {
+    const txt = config.refInFooter !== false ? items.join(' · ') : '';
+    if (foot.dataset.default != null) { foot.textContent = txt || foot.dataset.default; foot.classList.toggle('dn-foot-ref--on', !!txt); }
+    else { foot.textContent = txt; foot.hidden = !txt; }
+  }
+}
+
 // Éléments non saisissables remplis par la ligne choisie (en-tête, sections, blocs de texte)
 function isDisplayTarget(fid) {
   if (HEAD_TARGETS.some(t => t[0] === fid)) return true;
@@ -1315,6 +1384,7 @@ function displayText(v) {
   return v == null ? '' : String(v);
 }
 function setDisplay(fid, v) {
+  if (REF_TARGETS.includes(fid)) { refState[fid] = v == null || v === '' ? null : v; renderRef(); return; }
   const head = { __title: 'dn-title', __subtitle: 'dn-subtitle', __description: 'dn-desc' }[fid];
   let el, block = null, isMd = true;
   if (head) { el = document.getElementById(head); isMd = fid === '__description'; }
@@ -1820,7 +1890,9 @@ function lookupHtml(l, i, tables) {
       <span class="fr-icon-arrow-right-line" aria-hidden="true"></span>
       ${selectCtl('', `${p}mappings.${j}.fieldId`, targetOptions(l), m.fieldId, { aria: 'Élément du formulaire' })}
       ${iconBtn('delMap', 'fr-icon-close-line', 'Retirer', `data-i="${i}" data-j="${j}"`)}
-    </div>`).join('') || '<p class="fr-text--sm fr-text-mention--grey">Aucune correspondance. Exemple : « Libellé stage » → « Titre du formulaire ».</p>'}
+    </div>${m.fieldId === '__ref' ? (() => { const id = ctlId(); return `<div class="bld-map__extra"><label class="fr-label fr-text--sm" for="${id}">Texte avant la valeur</label>
+      <input class="fr-input" id="${id}" data-bind="${p}mappings.${j}.prefix" value="${esc(m.prefix != null ? m.prefix : defaultRefPrefix(m))}" placeholder="(valeur seule)">
+      <span class="fr-hint-text">ex. « Session » → « Session 2 »</span></div>`; })() : ''}`).join('') || '<p class="fr-text--sm fr-text-mention--grey">Aucune correspondance. Exemple : « Libellé stage » → « Titre du formulaire ».</p>'}
     <div class="bld-btnrow fr-mb-4w">
       <button type="button" class="fr-btn fr-btn--sm fr-btn--secondary fr-icon-add-line fr-btn--icon-left" data-act="addMap" data-i="${i}">Ajouter une correspondance</button>
       ${ext ? '' : `<button type="button" class="fr-btn fr-btn--sm fr-btn--tertiary fr-icon-refresh-line fr-btn--icon-left" data-act="autoMap" data-i="${i}"${l.tableId ? '' : ' disabled'}>Associer automatiquement (mêmes libellés)</button>`}
@@ -1832,6 +1904,7 @@ function lookupHtml(l, i, tables) {
     ${checkCtl('Refuser un code qui n’existe pas dans la table', p + 'mustMatch', l.mustMatch, 'Contrôlé aussi par n8n au moment de l’envoi.')}
     ${checkCtl('Empêcher l’usager de modifier les champs préremplis', p + 'lock', l.lock)}
     ${i === 0 ? inputCtl('Message quand le code est trouvé', 'foundMessage', config.foundMessage, { placeholder: 'Référence stage trouvée.' }) : ''}
+    ${i === 0 ? checkCtl('Rappeler la référence dans le pied de page', 'refInFooter', config.refInFooter !== false, 'Les étiquettes « Référence sous le titre » (code, session…) restent visibles en bas de l’écran, à gauche.') : ''}
     <div class="bld-row3">
       ${colSel(p + 'openColId', l.openColId, '— aucune —', { label: 'Colonne « ouvert / fermé »', ph: 'Inscriptions_ouvertes', cols: srcCols.filter(c => c.type === 'Bool'), hint: 'Facultatif. Cochée par défaut sur chaque nouvelle ligne ; décochée : le formulaire est fermé pour ce code.' })}
       ${colSel(p + 'formColId', l.formColId, '— aucune —', { label: 'Colonne « formulaire »', ph: 'Formulaire', hint: 'Inutile avec un seul formulaire. Seulement si plusieurs formulaires différents utilisent la même table.' })}
@@ -2273,6 +2346,7 @@ async function loadFromTable() {
   } catch (e) { console.warn('Configuration illisible dans la table Formulaires', e); return false; }
 }
 async function saveOptions() {
+  syncRefPrefix();
   if (!inGrist) { savedJson = JSON.stringify(config); return; }
   await ensureFormsTable();
   config.targetTableId = targetTableId || '';
