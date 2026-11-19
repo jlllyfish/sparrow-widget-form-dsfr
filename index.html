@@ -1326,6 +1326,8 @@ function bindForm(form) {
 }
 function onFormChange(el) {
   applyVisibility();
+  // écran par écran : une réponse peut faire apparaître ou disparaître une question du même écran
+  if (stepMode() && $('#dn-form.dn-steps') && stepKey !== 'recap') showStep(stepKey, 0);
   if (config.showQrTop && fidOf(el) === config.urlField) updateSelfQr();
   const f = fieldById(fidOf(el));
   if (f && blockOf(f) && blockOf(f).dataset.err) showError(f, validateField(f, getValue(f)));
