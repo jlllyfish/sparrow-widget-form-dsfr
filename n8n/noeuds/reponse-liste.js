@@ -1,4 +1,4 @@
-// Nœud n8n « Réponse liste » — workflow version 6
+// Nœud n8n « Réponse liste » — workflow version 7
 // Mise à jour : ouvrez ce nœud dans n8n, sélectionnez tout le code (Ctrl+A), collez ce fichier, enregistrez le workflow.
 
 // Erreur renvoyée par Grist (le nœud HTTP continue en cas d'erreur)
@@ -11,10 +11,10 @@ function gristError(res, node) {
 }
 const prep = $('Préparer la liste').first().json;
 const res = $input.first().json;
-if (prep.reason) return [{ json: { ok: false, version: 6, error: prep.reason } }];
+if (prep.reason) return [{ json: { ok: false, version: 7, error: prep.reason } }];
 const err = gristError(res, 'Lister (SQL)');
-if (err) return [{ json: { ok: false, version: 6, error: err } }];
-if (prep.diag) return [{ json: { ok: true, version: 6, diag: Object.assign({}, prep.diag, (res.records[0] || {}).fields || {}) } }];
+if (err) return [{ json: { ok: false, version: 7, error: err } }];
+if (prep.diag) return [{ json: { ok: true, version: 7, diag: Object.assign({}, prep.diag, (res.records[0] || {}).fields || {}) } }];
 const options = (res.records || []).map(r => ({ value: String(r.fields.__key ?? '').trim(), label: r.fields.__label == null ? '' : String(r.fields.__label) }))
   .filter(o => o.value);
-return [{ json: { ok: true, version: 6, options } }];
+return [{ json: { ok: true, version: 7, options } }];

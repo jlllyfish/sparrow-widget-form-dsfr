@@ -1,4 +1,4 @@
-// Nœud n8n « Valider » — workflow version 6
+// Nœud n8n « Valider » — workflow version 7
 // Mise à jour : ouvrez ce nœud dans n8n, sélectionnez tout le code (Ctrl+A), collez ce fichier, enregistrez le workflow.
 
 // ⚠️ Bloc généré à partir du widget (index.html) : même logique de validation que dans le navigateur.

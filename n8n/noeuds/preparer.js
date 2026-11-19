@@ -1,7 +1,7 @@
-// Nœud n8n « Préparer » — workflow version 6
+// Nœud n8n « Préparer » — workflow version 7
 // Mise à jour : ouvrez ce nœud dans n8n, sélectionnez tout le code (Ctrl+A), collez ce fichier, enregistrez le workflow.
 
-const VERSION = 6;
+const VERSION = 7;
 const p = $('Paramètres').first().json;
 const res = $input.first().json;
 const req = p.req || {};
@@ -16,4 +16,10 @@ const DOC = /^[A-Za-z0-9_-]+$/, ID = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const otherDoc = config.responsesDocId && DOC.test(config.responsesDocId);
 const respDocId = otherDoc ? config.responsesDocId : p.docId;
 const respTableId = otherDoc && ID.test(config.responsesTableId || '') ? config.responsesTableId : config.targetTableId;
-return [{ json: { action: req.action, config, req, gristUrl: p.gristUrl, docId: p.docId, respDocId, respTableId } }];
+// Version 7 : « config » avec un code (lien d'un stage) → configuration + informations du stage en un seul appel
+let action = req.action, r2 = req, withConfig = false;
+if (req.action === 'config' && req.value != null && String(req.value).trim()) {
+  const rule = (config.lookups || []).find(l => l.triggerFieldId === config.urlField);
+  if (rule) { action = 'lookup'; withConfig = true; r2 = Object.assign({}, req, { rule: rule.id }); }
+}
+return [{ json: { action, withConfig, config, req: r2, gristUrl: p.gristUrl, docId: p.docId, respDocId, respTableId } }];

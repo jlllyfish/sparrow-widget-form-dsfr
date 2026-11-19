@@ -6,7 +6,7 @@ Le dossier `noeuds/` contient le code de chaque nœud « Code » du workflow, un
 2. Cliquez dans le code, sélectionnez tout (Ctrl+A) et collez le contenu du fichier correspondant, par exemple `noeuds/valider.js`.
 3. Fermez le nœud, puis **enregistrez le workflow**. Il reste actif.
 
-Le nœud **Paramètres**, qui contient votre adresse Grist et l'identifiant du document, n'est jamais à remplacer. Les nœuds HTTP n'ont pas changé depuis la version 4.
+Le nœud **Paramètres**, qui contient votre adresse Grist et l'identifiant du document, n'est jamais à remplacer. Les nœuds HTTP et l'aiguillage n'ont pas changé depuis la version 4.
 
 La version en service s'affiche dans le widget, avec le bouton « Tester la connexion » (« workflow version N »).
 
@@ -14,6 +14,7 @@ La version en service s'affiche dans le widget, avec le bouton « Tester la conn
 
 | Version | Nœuds à remplacer | Changement |
 |---|---|---|
+| 7 | `preparer.js`, `reponse-recherche.js`, `config-publique.js`, `reponse-liste.js` | Chargement plus rapide : avec le lien d'un stage, la configuration et les informations du stage arrivent en un seul appel. Les deux derniers fichiers ne changent que par leur numéro de version. Sans cette mise à jour, le formulaire fonctionne, avec deux appels au chargement. |
 | 6 (facultatif) | `preparer-recherche.js`, `preparer-la-liste.js`, `valider.js` | Le « saut de page » est reconnu comme élément non saisissable. Sans cette mise à jour, tout fonctionne : n8n l'ignore déjà. |
 | 6 | `preparer.js`, `preparer-recherche.js`, `preparer-la-liste.js`, `valider.js` | Les cases cochées stockées par Grist sous la forme « T » sont reconnues. |
 | 5 | `preparer.js`, `preparer-la-liste.js`, `reponse-liste.js` | Diagnostic de la liste de choix. |

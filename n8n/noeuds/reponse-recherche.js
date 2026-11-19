@@ -1,6 +1,15 @@
-// Nœud n8n « Réponse recherche » — workflow version 6
+// Nœud n8n « Réponse recherche » — workflow version 7
 // Mise à jour : ouvrez ce nœud dans n8n, sélectionnez tout le code (Ctrl+A), collez ce fichier, enregistrez le workflow.
 
+// Configuration sans les détails internes (colonnes, tables, documents)
+function publicConfig(config) {
+  const c = JSON.parse(JSON.stringify(config));
+  (c.fields || []).forEach(f => { delete f.colId; });
+  c.lookups = (c.lookups || []).map(l => ({ id: l.id, triggerFieldId: l.triggerFieldId, lock: !!l.lock,
+    mustMatch: !!(l.mustMatch || l.openColId || l.formColId), mappings: (l.mappings || []).map(m => ({ fieldId: m.fieldId })) }));
+  ['contentSource', 'targetTableId', 'apiUrl', 'publicUrl', 'qrUrl', 'qrMode', 'responsesDocId', 'responsesTableId', 'urlLabelColId', 'urlCodes'].forEach(k => delete c[k]);
+  return c;
+}
 // Erreur renvoyée par Grist (le nœud HTTP continue en cas d'erreur)
 function gristError(res, node) {
   if (Array.isArray(res.records)) return '';
@@ -10,11 +19,16 @@ function gristError(res, node) {
   return `Grist a refusé la requête du nœud « ${node} » (${why}).` + (auth ? ' Vérifiez que l’identification « Grist API » est bien sélectionnée sur ce nœud et que la clé a accès au document.' : '');
 }
 const prep = $('Préparer recherche').first().json;
+const main = $('Préparer').first().json;
 const res = $input.first().json;
+// Démarrage d'un lien de stage (version 7) : configuration + résultat de la recherche
+const reply = out => main.withConfig
+  ? [{ json: { ok: true, version: 7, config: publicConfig(main.config), lookup: Object.assign({ rule: main.req.rule, value: main.req.value }, out) } }]
+  : [{ json: out }];
 const err = gristError(res, 'Rechercher (SQL)');
-if (err) return [{ json: { ok: false, error: err } }];
+if (err) return reply({ ok: false, error: err });
 const rec = (res.records || [])[0];
-if (!rec) return [{ json: { ok: true, found: false } }];
+if (!rec) return reply({ ok: true, found: false });
 // Plusieurs colonnes vers un même élément : une ligne « **Libellé** : valeur » par colonne
 const show = (v, t) => {
   if (Array.isArray(v)) return v.slice(v[0] === 'L' ? 1 : 0).join(', ');
@@ -29,4 +43,4 @@ Object.entries(groups).forEach(([fid, ms]) => {
     : ms.map(m => [m.label || m.colId, show(rec.fields[m.colId], m.type)]).filter(([, v]) => v.trim()).map(([l, v]) => `**${l}** : ${v}`).join('\n');
 });
 const closed = ('__open' in rec.fields) && !rec.fields.__open;
-return [{ json: { ok: true, found: true, closed, key: rec.fields.__key, fields } }];
+return reply({ ok: true, found: true, closed, key: rec.fields.__key, fields });

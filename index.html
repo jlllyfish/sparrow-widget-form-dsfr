@@ -100,6 +100,12 @@
     #btn-next,#btn-submit{flex:1;justify-content:center}
     .dn-steps .dn-q>.fr-label,.dn-steps .dn-q>.fr-fieldset__legend{font-size:1.25rem;line-height:1.75rem}
   }
+  .dn-loading{display:flex;align-items:center;gap:1rem;padding:3rem 0}
+  .dn-spin{display:inline-block;width:1.5rem;height:1.5rem;border:3px solid var(--border-default-grey);border-top-color:var(--border-active-blue-france);border-radius:50%;animation:dnSpin .8s linear infinite;flex:none}
+  .dn-spin--btn{width:1rem;height:1rem;border-width:2px;border-color:rgba(255,255,255,.4);border-top-color:#fff;margin-right:.5rem;vertical-align:-.125rem}
+  @keyframes dnSpin{to{transform:rotate(360deg)}}
+  @media (prefers-reduced-motion:reduce){.dn-spin{animation-duration:2s}}
+  .dn-sending{opacity:.6;pointer-events:none;transition:opacity .2s}
   .dn-band{padding:.5rem 1rem;display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;background:var(--background-alt-blue-france)}
   .dn-band--preview{background:var(--background-contrast-warning)}
   .dn-band p{margin:0;font-size:.875rem;font-weight:500}
@@ -205,7 +211,7 @@ function startApp() {
    ===================================================================== */
 const DEFAULT_API = 'https://rucher.incubateur-agriculture.beta.gouv.fr/webhook/formulaire-dsfr';   // liens plus courts : &api=… omis quand c’est celle-ci
 const FORMS_TABLE = 'Formulaires';
-const WF_VERSION = 6;   // version du workflow n8n attendue par cette page
+const WF_VERSION = 7;   // version du workflow n8n attendue par cette page
 
 /* =====================================================================
    Contexte d'exécution
@@ -1204,7 +1210,7 @@ async function runLookups(fieldId) {
         const api = remote ? PUBLIC_API : config.apiUrl;
         const slug = remote ? PUBLIC_SLUG : config.slug;
         if (!api || !slug) throw new Error('publiez le formulaire et renseignez l’adresse n8n');
-        const r = await callApi(api, { action: 'lookup', f: slug, rule: rule.id, value: rawStr });
+        const r = (remote && await bootLookup(rule, rawStr)) || await callApi(api, { action: 'lookup', f: slug, rule: rule.id, value: rawStr });
         if (!r || r.ok === false) throw new Error((r && r.error) || 'erreur du service');
         found = !!r.found;
         closed = !!r.closed;
@@ -1368,8 +1374,10 @@ function showFormErrors(errors, message) {
   }
 }
 
+let sending = false;
 async function onSubmit(e) {
   e.preventDefault();
+  if (sending) return;
   if (stepMode() && stepKey !== 'recap') { stepNext(); return; }   // Entrée sur une question = OK
   const btn = $('#btn-submit');
   await Promise.all(Object.values(pendingLookups));
@@ -1380,8 +1388,12 @@ async function onSubmit(e) {
   config.fields.filter(isInput).forEach(f => showError(f, ''));
 
   const setBusy = busy => {
-    btn.disabled = busy;
-    btn.textContent = busy ? 'Envoi en cours…' : (config.submitLabel || 'Envoyer');
+    sending = busy;   // le bouton garde sa couleur (indicateur visible) mais n’accepte plus de clic
+    btn.setAttribute('aria-disabled', busy ? 'true' : 'false');
+    btn.style.pointerEvents = busy ? 'none' : '';
+    btn.setAttribute('aria-busy', busy ? 'true' : 'false');
+    btn.innerHTML = busy ? '<span class="dn-spin dn-spin--btn" aria-hidden="true"></span>Envoi en cours…' : esc(config.submitLabel || 'Envoyer');
+    const f = $('#dn-form'); if (f) f.classList.toggle('dn-sending', busy);
     if (stepMode()) { const pv = $('#btn-prev'); if (pv) pv.disabled = busy; }
   };
 
@@ -2928,21 +2940,50 @@ function demoConfig() {
   });
 }
 
+// Un seul appel au démarrage : la configuration et, si le lien contient un code, les informations du stage (workflow ≥ 7)
+let bootCall = null;
+const cfgCacheKey = () => 'dnCfg:' + PUBLIC_API + ':' + PUBLIC_SLUG;
+function readCachedConfig() {
+  try { const c = JSON.parse(localStorage.getItem(cfgCacheKey()) || 'null'); return c && c.config ? c.config : null; } catch (e) { return null; }
+}
+function writeCachedConfig(cfg) { try { localStorage.setItem(cfgCacheKey(), JSON.stringify({ at: Date.now(), config: cfg })); } catch (e) { /* ignore */ } }
 async function bootRemote() {
   remote = true;
-  app.innerHTML = '<main class="dn-page"><p class="fr-text--lg">Chargement du formulaire…</p></main>';
+  app.innerHTML = `<main class="dn-page" aria-busy="true"><div class="dn-loading"><span class="dn-spin" aria-hidden="true"></span>
+    <p class="fr-text--lg fr-mb-0">Chargement du formulaire…</p></div></main>`;
   try {
     if (!PUBLIC_API) throw new Error('Ce lien est incomplet : il ne contient pas l’adresse du service d’enregistrement. Demandez un nouveau lien ou QR code à l’organisateur.');
-    const r = await callApi(PUBLIC_API, { action: 'config', f: PUBLIC_SLUG });
-    if (!r || r.ok === false || !r.config) throw new Error((r && r.error) || 'Ce formulaire n’existe pas ou n’est plus ouvert.');
-    config = normalizeConfig(r.config);
-    savedJson = JSON.stringify(config);
-    renderForm();
+    const cached = readCachedConfig();
+    const pn = cached && cached.urlParam && !['f', 'api'].includes(cached.urlParam) ? cached.urlParam : 'code';
+    const code = String(URLP.get(pn) || URLP.get('code') || '').trim();
+    bootCall = callApi(PUBLIC_API, Object.assign({ action: 'config', f: PUBLIC_SLUG }, code ? { value: code } : {}));
+    // affichage immédiat avec la dernière version connue, mise à jour dès la réponse
+    if (cached) { config = normalizeConfig(cached); savedJson = JSON.stringify(config); renderForm(); }
+    const r = await bootCall;
+    if (!r || r.ok === false || !r.config) { try { localStorage.removeItem(cfgCacheKey()); } catch (e) { /* ignore */ } throw new Error((r && r.error) || 'Ce formulaire n’existe pas ou n’est plus ouvert.'); }
+    writeCachedConfig(r.config);
+    const fresh = JSON.stringify(normalizeConfig(r.config));
+    if (!cached || fresh !== savedJson) {
+      config = normalizeConfig(r.config);
+      savedJson = fresh;
+      resetFormState();
+      renderForm();
+    }
   } catch (e) {
     console.error(e);
     app.innerHTML = `<main class="dn-page"><div class="fr-alert fr-alert--error"><h1 class="fr-alert__title">Formulaire indisponible</h1>
       <p>${esc(e.message)}</p></div></main>`;
   }
+}
+// Résultat du stage déjà reçu au démarrage, pour cette règle et ce code ?
+async function bootLookup(rule, value) {
+  if (!bootCall) return null;
+  try {
+    const r = await bootCall;
+    const lk = r && r.lookup;
+    if (lk && lk.rule === rule.id && keyNorm(lk.value) === keyNorm(value)) return lk;
+  } catch (e) { /* on refait l’appel normalement */ }
+  return null;
 }
 
 if (inGrist) {
