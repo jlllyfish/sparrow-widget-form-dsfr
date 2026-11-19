@@ -45,6 +45,60 @@
     border-top:1px solid var(--border-default-grey);box-shadow:0 -2px 8px rgba(0,0,18,.08);z-index:10}
   .dn-footer__inner{max-width:48rem;margin:0 auto;padding:1rem;display:flex;justify-content:space-between;gap:1rem;align-items:center;flex-wrap:wrap}
   .dn-footer__inner p{margin:0}
+  /* ===== Un écran à la fois (question ou section) ===== */
+  .dn-steps .dn-block:not(.dn-cur){display:none!important}
+  .dn-steps:not(.dn-at-intro) .dn-intro-only{display:none!important}
+  .dn-steps:not(.dn-at-recap) #dn-recap{display:none}
+  .dn-steps .dn-hp+#form-alert{margin-top:0}
+  .dn-progress{position:sticky;top:0;z-index:5;background:var(--background-default-grey);padding:.75rem 0;margin:-1rem 0 1.5rem}
+  .dn-progress__bar{height:.25rem;background:var(--background-contrast-grey)}
+  .dn-progress__bar span{display:block;height:100%;background:var(--background-active-blue-france);transition:width .3s ease}
+  .dn-progress__txt{font-size:.875rem;line-height:1.5rem;margin:.5rem 0 0;color:var(--text-mention-grey)}
+  .dn-steps:not(.dn-at-intro) .dn-head{display:none}
+  .dn-steps.dn-anim .dn-cur{animation:dnIn .28s ease-out both}
+  .dn-steps.dn-back .dn-cur{animation-name:dnBack}
+  @keyframes dnIn{from{opacity:0;transform:translateY(1rem)}to{opacity:1;transform:none}}
+  @keyframes dnBack{from{opacity:0;transform:translateY(-1rem)}to{opacity:1;transform:none}}
+  @media (prefers-reduced-motion:reduce){.dn-steps .dn-cur{animation:none}}
+  .dn-steps .dn-q>.fr-label,.dn-steps .dn-q>.fr-fieldset__legend,.dn-steps .dn-q .fr-checkbox-group>.fr-label{font-size:1.375rem;line-height:1.875rem}
+  .dn-steps .dn-q>.fr-label .fr-hint-text,.dn-steps .dn-q>.fr-fieldset__legend .fr-hint-text{font-size:1rem;line-height:1.5rem}
+  .dn-steps .dn-q .fr-input,.dn-steps .dn-q .fr-select{font-size:1.125rem;padding-top:.75rem;padding-bottom:.75rem}
+  /* choix unique en grandes cases */
+  .dn-steps .dn-tiles .fr-fieldset__element{margin-bottom:.75rem}
+  .dn-steps .dn-tiles .fr-radio-group{max-width:none;width:100%}
+  .dn-steps .dn-tiles .fr-radio-group input[type=radio]+label{border:1px solid var(--border-default-grey);padding:1rem 1rem 1rem 3rem;min-height:3.5rem;justify-content:center;
+    background-position:calc(.75rem + 1px) calc(1rem - .25rem + 1px),calc(.75rem + 1px) calc(1rem - .25rem + 1px);cursor:pointer}
+  .dn-steps .dn-tiles .fr-radio-group input[type=radio]+label:before{top:1rem;left:1rem;margin-left:0}
+  .dn-steps .dn-tiles .fr-radio-group input[type=radio]+label:hover{background-color:var(--background-default-grey-hover)}
+  .dn-steps .dn-tiles .fr-radio-group input[type=radio]:checked+label{border-color:var(--border-active-blue-france);box-shadow:inset 0 0 0 1px var(--border-active-blue-france);background-color:var(--background-alt-blue-france)}
+  .dn-steps .dn-tiles.dn-inline{display:grid;grid-template-columns:1fr 1fr;column-gap:.75rem}
+  .dn-steps .dn-tiles.dn-inline>legend,.dn-steps .dn-tiles.dn-inline>.fr-messages-group,.dn-steps .dn-tiles.dn-inline>.dn-status{grid-column:1/-1}
+  .dn-steps .dn-tiles.dn-inline>.fr-fieldset__element{flex:none;max-width:none;width:100%;margin-right:0;padding-left:0;padding-right:0}
+  .dn-steps .dn-tiles>.fr-fieldset__element{padding-left:0;padding-right:0}
+  .dn-steps .dn-tiles.fr-fieldset{margin-left:0;margin-right:0}
+  .dn-steps .dn-tiles>legend,.dn-steps .dn-tiles>.fr-messages-group{padding-left:0;padding-right:0}
+  /* récapitulatif */
+  .dn-recap h2{margin-bottom:1rem}
+  .dn-recap dl{margin:0 0 2rem;padding:0;border-top:1px solid var(--border-default-grey)}
+  .dn-recap dt,.dn-recap dd{padding:0}
+  .dn-recap__row{display:grid;grid-template-columns:1fr auto;gap:.25rem 1rem;padding:1rem 0;border-bottom:1px solid var(--border-default-grey)}
+  .dn-recap dt{font-weight:700;grid-column:1}
+  .dn-recap dd{margin:0;grid-column:1;white-space:pre-line;color:var(--text-mention-grey)}
+  .dn-recap__edit{grid-column:2;grid-row:1/span 2;align-self:center}
+  .dn-recap__sec{font-size:.875rem;text-transform:uppercase;letter-spacing:.03em;color:var(--text-mention-grey);margin:1.5rem 0 .25rem}
+  /* barre du bas : Précédent / OK */
+  .dn-stepnav{display:flex;gap:1rem;align-items:center;width:100%}
+  .dn-stepnav .dn-stepnav__ok,.dn-stepnav__kbd[hidden]+#btn-next,#btn-submit{margin-left:auto}
+  .dn-stepnav__kbd{font-size:.75rem;color:var(--text-mention-grey)}
+  .dn-steps-on .dn-footer{padding-bottom:env(safe-area-inset-bottom)}
+  @media (max-width:576px){
+    .dn-steps-on .fr-header{display:none}
+    .dn-steps-on.dn-on-intro .fr-header{display:block}
+    .dn-stepnav__kbd{display:none}
+    .dn-stepnav .fr-btn{min-height:3rem}
+    #btn-next,#btn-submit{flex:1;justify-content:center}
+    .dn-steps .dn-q>.fr-label,.dn-steps .dn-q>.fr-fieldset__legend{font-size:1.25rem;line-height:1.75rem}
+  }
   .dn-band{padding:.5rem 1rem;display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;background:var(--background-alt-blue-france)}
   .dn-band--preview{background:var(--background-contrast-warning)}
   .dn-band p{margin:0;font-size:.875rem;font-weight:500}
@@ -381,7 +435,7 @@ function defaultConfig() {
     fields: [], lookups: [],
     slug: '', apiUrl: '', publicUrl: '', qrMode: 'autonome', qrUrl: '',
     responsesDocId: '', responsesTableId: '',
-    urlField: '', urlParam: 'code', urlLock: true, urlLabelColId: '', urlCodes: '', showQrTop: false, targetTableId: '', foundMessage: 'Référence stage trouvée.'
+    urlField: '', urlParam: 'code', urlLock: true, urlLabelColId: '', urlCodes: '', showQrTop: false, targetTableId: '', foundMessage: 'Référence stage trouvée.', presentation: 'page'
   };
 }
 function newField(type, label) {
@@ -609,31 +663,239 @@ function renderForm() {
 
   let n = 0;
   const fieldsHtml = config.fields.map(f => fieldHtml(f, f.type === 'section' ? ++n : n)).join('');
+  const steps = stepMode();
   app.innerHTML = band + head + `
   <main class="dn-page">
-    <form id="dn-form" novalidate>
-      ${!(config.header && config.header.enabled) && config.logo && config.logo.src ? `<div class="dn-logo">${logoImg()}</div>` : ''}
+    <form id="dn-form" novalidate${steps ? ' class="dn-steps dn-at-intro"' : ''}>
+      ${steps ? '<div class="dn-progress" id="dn-progress" hidden><div class="dn-progress__bar"><span></span></div><p class="dn-progress__txt" id="dn-progress-txt" aria-live="polite"></p></div>' : ''}
+      ${!(config.header && config.header.enabled) && config.logo && config.logo.src ? `<div class="dn-logo dn-intro-only">${logoImg()}</div>` : ''}
       <div class="dn-head"><div class="dn-head__text">
         <h1 class="fr-h2 fr-mb-2w" id="dn-title">${title}</h1>
         <p class="fr-text--lead fr-mb-3w" id="dn-subtitle"${subtitle ? '' : ' hidden'}>${subtitle}</p>
         <div class="dn-text fr-mb-3w" id="dn-desc"${desc ? '' : ' hidden'}>${desc}</div>
       </div>${config.showQrTop ? '<div class="dn-selfqr" id="self-qr" hidden></div>' : ''}</div>
-      <p class="fr-text--sm fr-mb-4w">Les champs suivis d’un astérisque ( <span class="dn-req">*</span> ) sont obligatoires.</p>
+      <p class="fr-text--sm fr-mb-4w dn-intro-only">Les champs suivis d’un astérisque ( <span class="dn-req">*</span> ) sont obligatoires.</p>
       ${fieldsHtml}
+      ${steps ? '<section class="dn-recap" id="dn-recap" tabindex="-1"></section>' : ''}
       <div class="dn-hp" aria-hidden="true"><label for="hp_site">Ne pas remplir ce champ</label><input id="hp_site" name="site_web" tabindex="-1" autocomplete="off"></div>
       <div id="form-alert" aria-live="polite"></div>
     </form>
   </main>
-  <footer class="dn-footer"><div class="dn-footer__inner">
+  <footer class="dn-footer"><div class="dn-footer__inner">${steps ? `<div class="dn-stepnav">
+      <button type="button" class="fr-btn fr-btn--secondary fr-icon-arrow-left-line fr-btn--icon-left" data-act="stepPrev" id="btn-prev" hidden>Précédent</button>
+      <span class="dn-stepnav__kbd dn-stepnav__ok" id="kbd-hint">ou appuyez sur Entrée ↵</span>
+      <button type="button" class="fr-btn fr-icon-arrow-right-line fr-btn--icon-right" data-act="stepNext" id="btn-next">Commencer</button>
+      <button type="submit" form="dn-form" class="fr-btn fr-icon-send-plane-line fr-btn--icon-right" id="btn-submit" hidden>${esc(config.submitLabel || 'Envoyer')}</button>
+    </div>` : `
     <p class="fr-text--xs fr-text-mention--grey">Vérifiez vos réponses avant de déposer.</p>
-    <button type="submit" form="dn-form" class="fr-btn" id="btn-submit">${esc(config.submitLabel || 'Envoyer')}</button>
+    <button type="submit" form="dn-form" class="fr-btn" id="btn-submit">${esc(config.submitLabel || 'Envoyer')}</button>`}
   </div></footer>`;
 
+  document.body.classList.toggle('dn-steps-on', steps);
   bindForm($('#dn-form'));
   applyVisibility();
   config.fields.filter(f => f.type === 'tableselect').forEach(loadOptions);
   if (mode === 'form') applyUrlPrefill();
   updateSelfQr();
+  if (steps) stepsStart();
+}
+
+/* =====================================================================
+   UN ÉCRAN À LA FOIS (une question ou une section par écran)
+   ===================================================================== */
+const stepMode = () => (config.presentation === 'question' || config.presentation === 'section') && (mode === 'form' || mode === 'preview');
+let stepKey = 'intro', stepReturnRecap = false;
+// élément affichable maintenant ?
+function stepShows(f, vis) {
+  if (!vis[f.id]) return false;
+  const b = blockOf(f);
+  if (!b || b.dataset.empty === '1') return false;
+  if (f.hiddenField && f.type === 'text') return false;
+  if (isInput(f) && codeFromLink(f)) return false;
+  return true;
+}
+// Découpe le formulaire en écrans, d’après les questions visibles à cet instant
+function buildScreens() {
+  const { vis } = computeVisibility();
+  const bySection = config.presentation === 'section';
+  const screens = [];
+  let cur = null, section = null;
+  const close = () => { if (cur && cur.items.length) screens.push(cur); cur = null; };
+  const open = () => { cur = { key: '', items: [], inputs: 0, section }; };
+  config.fields.forEach(f => {
+    if (!stepShows(f, vis)) { if (f.type === 'section') section = null; return; }
+    if (f.type === 'section') { close(); section = f; open(); cur.items.push(f); return; }
+    if (!isInput(f)) {                       // bloc de texte : contexte de la question qui suit
+      if (!cur || (!bySection && cur.inputs)) { close(); open(); }
+      cur.items.push(f); return;
+    }
+    if (!cur || (!bySection && cur.inputs)) { close(); open(); }
+    cur.items.push(f); cur.inputs++;
+  });
+  close();
+  screens.forEach(sc => { sc.key = sc.items[0].id; });
+  // accueil : en-tête + écrans d’information qui précèdent la première question (ex. le stage choisi par le lien)
+  const intro = { key: 'intro', items: [], inputs: 0 };
+  while (screens.length && !screens[0].inputs) intro.items.push(...screens.shift().items);
+  // textes placés après la dernière question : sur l’écran récapitulatif
+  const recap = { key: 'recap', items: [], inputs: 0 };
+  while (screens.length && !screens[screens.length - 1].inputs) recap.items.unshift(...screens.pop().items);
+  return [intro, ...screens, recap];
+}
+function stepsStart() {
+  stepKey = 'intro'; stepReturnRecap = false;
+  // Entrée = OK (sauf texte long et liste de cases à cocher)
+  $('#dn-form').addEventListener('keydown', e => {
+    if (e.key !== 'Enter' || e.shiftKey || e.isComposing || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON') return;
+    if (e.target.type === 'checkbox' && fieldById(fidOf(e.target)) && fieldById(fidOf(e.target)).type === 'checkboxes') return;
+    e.preventDefault();
+    if (stepKey === 'recap') $('#btn-submit').click(); else stepNext();
+  });
+  histPush('intro', true);
+  showStep('intro', 0);
+}
+// Historique du navigateur (page publique) : le bouton retour du téléphone revient à l’écran précédent
+let histN = 0;
+function histPush(key, replace) {
+  if (!remote) return;
+  try { if (replace) history.replaceState({ dnStep: key, n: histN }, ''); else history.pushState({ dnStep: key, n: ++histN }, ''); } catch (e) { /* ignore */ }
+}
+function stepIndex(screens, key) {
+  let i = screens.findIndex(s => s.key === key);
+  if (i < 0) {   // l’écran a disparu (condition) : on se place au plus près dans l’ordre du formulaire
+    const order = id => config.fields.findIndex(f => f.id === id);
+    const pos = order(key);
+    i = Math.max(0, screens.findIndex(s => s.key !== 'intro' && s.key !== 'recap' && order(s.key) > pos) - 1);
+  }
+  return i;
+}
+function showStep(key, dir) {
+  const form = $('#dn-form');
+  if (!form) return;
+  const screens = buildScreens();
+  const i = stepIndex(screens, key);
+  const sc = screens[i];
+  stepKey = sc.key;
+  const isIntro = sc.key === 'intro', isRecap = sc.key === 'recap';
+  form.classList.toggle('dn-at-intro', isIntro);
+  form.classList.toggle('dn-at-recap', isRecap);
+  form.classList.toggle('dn-back', dir < 0);
+  form.classList.toggle('dn-anim', dir !== 0);
+  document.body.classList.toggle('dn-on-intro', isIntro);
+  $$('.dn-block.dn-cur', form).forEach(b => b.classList.remove('dn-cur'));
+  sc.items.forEach(f => {
+    const b = blockOf(f);
+    if (!b) return;
+    b.classList.add('dn-cur');
+    b.classList.toggle('dn-q', isInput(f));
+    if (f.type === 'radio' || f.type === 'yesno') b.classList.add('dn-tiles');
+    if (dir !== 0) { b.style.animation = 'none'; void b.offsetWidth; b.style.animation = ''; }   // relance l’animation
+  });
+  if (isRecap) {
+    renderRecap(screens);
+    if (sc.items.length) blockOf(sc.items[0]).before($('#dn-recap'));   // les textes de fin (ex. « Vos données ») sous le récapitulatif
+  }
+  // progression
+  const qs = screens.filter(s => s.inputs);
+  const qi = qs.indexOf(sc);
+  const prog = $('#dn-progress');
+  prog.hidden = isIntro;
+  const pct = isRecap ? 100 : qi < 0 ? 0 : Math.round(qi / qs.length * 100);
+  $('.dn-progress__bar span', prog).style.width = pct + '%';
+  const unit = config.presentation === 'section' ? 'Étape' : 'Question';
+  const sec = sc.section ? ` · ${String(sc.section.label || '').replace(/\s+/g, ' ')}` : '';
+  $('#dn-progress-txt').textContent = isRecap ? 'Vérifiez vos réponses' : qi >= 0 ? `${unit} ${qi + 1} sur ${qs.length}${sec}` : sec.replace(/^ · /, '');
+  // boutons
+  $('#btn-prev').hidden = isIntro;
+  const next = $('#btn-next'), sub = $('#btn-submit');
+  next.hidden = isRecap; sub.hidden = !isRecap;
+  next.textContent = isIntro ? 'Commencer' : stepReturnRecap ? 'OK, revenir au récapitulatif' : sc.inputs ? 'OK' : 'Continuer';
+  next.classList.toggle('fr-icon-arrow-right-line', isIntro);
+  next.classList.toggle('fr-btn--icon-right', isIntro);
+  const kbd = $('#kbd-hint'); if (kbd) kbd.hidden = isIntro || isRecap || sc.items.some(f => f.type === 'textarea' || f.type === 'checkboxes');
+  // focus : la question (ordinateur) ou l’écran (téléphone, pour ne pas ouvrir le clavier d’office)
+  if (dir !== 0) {
+    window.scrollTo(0, 0);
+    const first = sc.items.find(isInput);
+    const touch = window.matchMedia && matchMedia('(pointer:coarse)').matches;
+    const target = isRecap ? $('#dn-recap') : first && !touch ? $('input:not([type=hidden]):not([readonly]),select,textarea', blockOf(first)) : null;
+    const lab = first && $('.fr-label,.fr-fieldset__legend', blockOf(first));
+    if (target) target.focus({ preventScroll: true });
+    else if (lab) { lab.tabIndex = -1; lab.focus({ preventScroll: true }); }
+  }
+  if (dir !== 0) $('#form-alert').innerHTML = '';
+}
+async function stepNext() {
+  const screens = buildScreens();
+  const i = stepIndex(screens, stepKey);
+  const sc = screens[i];
+  if (sc.inputs) {
+    await Promise.all(Object.values(pendingLookups));
+    const errors = collectErrors(sc.items.filter(isInput).map(f => f.id));
+    if (Object.keys(errors).length) { showFormErrors(errors); return; }
+  }
+  const after = buildScreens();      // une réponse peut faire apparaître ou disparaître des questions
+  const j = stepIndex(after, sc.key);
+  const target = stepReturnRecap ? 'recap' : (after[Math.min(j + 1, after.length - 1)] || {}).key;
+  stepReturnRecap = false;
+  histPush(target);
+  showStep(target, 1);
+}
+function stepPrev() {
+  if (remote && history.state && history.state.n > 0) { history.back(); return; }
+  goPrev();
+}
+function goPrev() {
+  const screens = buildScreens();
+  const i = stepIndex(screens, stepKey);
+  stepReturnRecap = false;
+  showStep(screens[Math.max(0, i - 1)].key, -1);
+}
+window.addEventListener('popstate', e => {
+  if (!stepMode() || !$('#dn-form')) return;
+  const k = e.state && e.state.dnStep;
+  histN = (e.state && e.state.n) || 0;
+  stepReturnRecap = false;
+  showStep(k || 'intro', -1);
+});
+function fmtAnswer(f, v) {
+  if (f.type === 'checkbox') return v ? 'Oui' : 'Non';
+  if (Array.isArray(v)) return v.join('\n');
+  if (f.type === 'date' && /^\d{4}-\d{2}-\d{2}$/.test(v || '')) return v.split('-').reverse().join('/');
+  return String(v ?? '');
+}
+function renderRecap(screens) {
+  const { values } = computeVisibility();
+  let h = '<h2 class="fr-h4">Récapitulatif de vos réponses</h2>', lastSec = null;
+  const rows = [];
+  config.fields.filter(f => isInput(f) && codeFromLink(f)).forEach(f => {
+    rows.push(`<div class="dn-recap__row"><dt>${esc(String(f.label || ''))}</dt><dd>${esc(fmtAnswer(f, values[f.id]))}</dd></div>`);
+  });
+  screens.filter(s => s.inputs).forEach(sc => {
+    sc.items.filter(isInput).forEach(f => {
+      if (sc.section && sc.section !== lastSec) { rows.push(`</dl><p class="dn-recap__sec">${esc(String(sc.section.label || ''))}</p><dl>`); lastSec = sc.section; }
+      const v = fmtAnswer(f, values[f.id]);
+      rows.push(`<div class="dn-recap__row"><dt>${esc(String(f.label || ''))}</dt><dd>${v ? esc(v) : '<em>Sans réponse</em>'}</dd>
+        <button type="button" class="fr-btn fr-btn--sm fr-btn--tertiary-no-outline fr-icon-edit-line fr-btn--icon-left dn-recap__edit" data-act="stepGoto" data-key="${esc(sc.key)}"
+          aria-label="Modifier : ${esc(String(f.label || ''))}">Modifier</button></div>`);
+    });
+  });
+  h += `<dl>${rows.join('')}</dl>`;
+  $('#dn-recap').innerHTML = h.replace(/<dl><\/dl>/g, '');
+}
+// Erreurs des champs donnés (champ obligatoire, format, code introuvable…)
+function collectErrors(ids) {
+  const { vis, values } = computeVisibility();
+  const errors = {};
+  config.fields.filter(f => isInput(f) && (!ids || ids.includes(f.id))).forEach(f => { if (vis[f.id]) { const m = validateField(f, values[f.id]); if (m) errors[f.id] = m; } });
+  config.lookups.forEach(l => {
+    const f = fieldById(l.triggerFieldId);
+    if (!f || (ids && !ids.includes(f.id)) || !vis[f.id] || isEmpty(values[f.id]) || errors[f.id]) return;
+    if (lookupErr[l.id]) errors[f.id] = 'Ce code n’a pas pu être vérifié (' + lookupErr[l.id] + '). Réessayez dans quelques instants.';
+    else if (lookupState[l.id] === 'closed') errors[f.id] = 'Les inscriptions sont closes pour ce code.';
+    else if (ruleBlocks(l) && lookupState[l.id] !== 'match') errors[f.id] = 'Cette valeur est introuvable. Vérifiez votre saisie.';
+  });
+  return errors;
 }
 
 /* ---------- QR code en haut du formulaire (pour l’ouvrir sur un téléphone) ---------- */
@@ -985,6 +1247,7 @@ async function runLookups(fieldId) {
   if (status) status.innerHTML = messages.map(([t, m]) => `<p class="fr-message fr-message--${t}">${esc(m)}</p>`).join('');
   applyVisibility();
   if (config.showQrTop) updateSelfQr();
+  if (stepMode() && $('#dn-form.dn-steps')) showStep(stepKey, 0);   // l’écran affiché reçoit les informations du stage
 }
 // Plusieurs colonnes vers un même élément : une ligne « **Libellé** : valeur » par colonne
 function groupMapped(entries) {
@@ -1074,6 +1337,15 @@ function showFormErrors(errors, message) {
   config.fields.filter(isInput).forEach(f => showError(f, errors[f.id] || ''));
   const bad = config.fields.filter(f => errors[f.id]);
   const n = bad.length;
+  if (stepMode()) {
+    if (n) {
+      const sc = buildScreens().find(s => s.items.some(f => f.id === bad[0].id));
+      if (sc && sc.key !== stepKey) { stepReturnRecap = stepKey === 'recap'; showStep(sc.key, -1); config.fields.filter(isInput).forEach(f => showError(f, errors[f.id] || '')); }
+    }
+    $('#form-alert').innerHTML = message ? `<div class="fr-alert fr-alert--error fr-alert--sm fr-mt-2w"><p>${esc(message)}</p></div>` : '';
+    if (n) { const first = $('input:not([type=hidden]),select,textarea', blockOf(bad[0])); if (first) first.focus(); }
+    return;
+  }
   $('#form-alert').innerHTML = `<div class="fr-alert fr-alert--error fr-alert--sm fr-mt-2w"><p>${esc(message ||
     (n > 1 ? `Le formulaire contient ${n} erreurs. Corrigez les champs signalés.` : 'Le formulaire contient une erreur. Corrigez le champ signalé.'))}</p></div>`;
   if (n) {
@@ -1085,18 +1357,11 @@ function showFormErrors(errors, message) {
 
 async function onSubmit(e) {
   e.preventDefault();
+  if (stepMode() && stepKey !== 'recap') { stepNext(); return; }   // Entrée sur une question = OK
   const btn = $('#btn-submit');
   await Promise.all(Object.values(pendingLookups));
   const { vis, values } = computeVisibility();
-  const errors = {};
-  config.fields.filter(isInput).forEach(f => { if (vis[f.id]) { const m = validateField(f, values[f.id]); if (m) errors[f.id] = m; } });
-  config.lookups.forEach(l => {
-    const f = fieldById(l.triggerFieldId);
-    if (!f || !vis[f.id] || isEmpty(values[f.id]) || errors[f.id]) return;
-    if (lookupErr[l.id]) errors[f.id] = 'Ce code n’a pas pu être vérifié (' + lookupErr[l.id] + '). Réessayez dans quelques instants.';
-    else if (lookupState[l.id] === 'closed') errors[f.id] = 'Les inscriptions sont closes pour ce code.';
-    else if (ruleBlocks(l) && lookupState[l.id] !== 'match') errors[f.id] = 'Cette valeur est introuvable. Vérifiez votre saisie.';
-  });
+  const errors = collectErrors(null);
   if (Object.keys(errors).length) { showFormErrors(errors); return; }
   $('#form-alert').innerHTML = '';
   config.fields.filter(isInput).forEach(f => showError(f, ''));
@@ -1104,6 +1369,7 @@ async function onSubmit(e) {
   const setBusy = busy => {
     btn.disabled = busy;
     btn.textContent = busy ? 'Envoi en cours…' : (config.submitLabel || 'Envoyer');
+    if (stepMode()) { const pv = $('#btn-prev'); if (pv) pv.disabled = busy; }
   };
 
   // --- formulaire public : dépôt via n8n
@@ -1146,6 +1412,7 @@ async function onSubmit(e) {
 
 function showSuccess(rowId, record) {
   const wasPreview = mode === 'preview';
+  document.body.classList.remove('dn-steps-on', 'dn-on-intro');
   mode = 'success';
   app.innerHTML = (wasPreview ? `<div class="dn-band dn-band--preview"><p>Aperçu — rien n’a été enregistré</p>
       <button class="fr-btn fr-btn--sm fr-btn--secondary" data-act="back">Retour à la configuration</button></div>` : '') + headerHtml() + `
@@ -1208,6 +1475,7 @@ async function openBuilder() {
 }
 
 function renderBuilder() {
+  document.body.classList.remove('dn-steps-on', 'dn-on-intro');
   ctlSeq = 0;
   const nQ = config.fields.filter(isInput).length;
   const tabs = [['general', '1. Formulaire'], ['lookups', '2. Formation choisie'], ['fields', `3. Questions (${nQ})`],
@@ -1244,7 +1512,10 @@ function generalTab() {
   const isData = (lg.src || '').startsWith('data:');
   return `<div class="bld-cols2">
     <div>
-      <p class="bld-h">Textes du formulaire</p>
+      <p class="bld-h">Présentation</p>
+      ${radiosCtl('presentation', [['page', 'Tout sur une page'], ['question', 'Une question par écran'], ['section', 'Une section par écran']], config.presentation || 'page',
+        'Écran par écran : accueil, une question (ou une section) à la fois avec « Précédent » et « OK », puis récapitulatif avant l’envoi. Pratique sur téléphone.')}
+      <p class="bld-h fr-mt-4w">Textes du formulaire</p>
       ${inputCtl('Identifiant du formulaire', 'slug', config.slug, { hint: 'Utilisé dans les liens. Lettres minuscules, chiffres et tirets.', placeholder: slugify(formTitle()), attrs: ' spellcheck="false"' })}
       ${inputCtl('Titre', 'title', config.title, { hint: 'Peut être remplacé par une colonne de la ligne choisie (onglet « 2. Formation choisie »).' })}
       ${inputCtl('Sous-titre (facultatif)', 'subtitle', config.subtitle)}
@@ -1961,6 +2232,12 @@ async function saveOptions() {
 /* =====================================================================
    PLUSIEURS FORMULAIRES · TABLE DE RÉPONSES AUTOMATIQUE · ASSISTANT
    ===================================================================== */
+function radiosCtl(bind, options, val, hint) {
+  const name = ctlId();
+  return `<fieldset class="fr-fieldset" aria-labelledby="${name}_l"><legend class="fr-fieldset__legend fr-fieldset__legend--regular" id="${name}_l">Affichage du formulaire<span class="fr-hint-text">${esc(hint)}</span></legend>
+    ${options.map(([v, l], i) => `<div class="fr-fieldset__element fr-fieldset__element--inline"><div class="fr-radio-group">
+      <input type="radio" id="${name}_${i}" name="${name}" value="${esc(v)}" data-bind="${bind}"${v === val ? ' checked' : ''}><label class="fr-label" for="${name}_${i}">${esc(l)}</label></div></div>`).join('')}</fieldset>`;
+}
 const lookupTables = () => [...new Set(config.lookups.map(l => l.tableId).filter(Boolean))];
 const toTableId = s => {
   let id = String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
@@ -2462,6 +2739,9 @@ const actions = {
     loadContents().then(render);
   },
   preview: () => { mode = 'preview'; resetFormState(); renderForm(); window.scrollTo(0, 0); },
+  stepNext: () => stepNext(),
+  stepPrev: () => stepPrev(),
+  stepGoto: el => { histPush(el.dataset.key); stepReturnRecap = true; showStep(el.dataset.key, -1); },
   back: () => { mode = 'builder'; renderBuilder(); },
   configure: () => openBuilder(),
   newFormFromEmpty: async () => { await loadSchema(); await refreshForms(); startWizard(); },
@@ -2584,7 +2864,7 @@ app.addEventListener('change', async e => {
     return;
   }
   if (el.dataset.rerender && el.dataset.bind) { applyBind(el); renderBuilder(); return; }
-  if (!el.dataset.bind || !(el.tagName === 'SELECT' || el.type === 'checkbox')) return;
+  if (!el.dataset.bind || !(el.tagName === 'SELECT' || el.type === 'checkbox' || el.type === 'radio')) return;
   if (applyBind(el)) {
     renderBuilder();
   }
