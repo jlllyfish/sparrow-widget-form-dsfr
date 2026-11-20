@@ -99,8 +99,6 @@
   .dn-stepnav__kbd{font-size:.75rem;color:var(--text-mention-grey)}
   .dn-steps-on .dn-footer{padding-bottom:env(safe-area-inset-bottom)}
   @media (max-width:576px){
-    .dn-steps-on .fr-header{display:none}
-    .dn-steps-on.dn-on-intro .fr-header{display:block}
     .dn-stepnav__kbd{display:none}
     .dn-stepnav .fr-btn{min-height:3rem}
     #btn-next,#btn-submit{flex:1;justify-content:center}
@@ -749,7 +747,7 @@ function renderForm() {
   <main class="dn-page">
     <form id="dn-form" novalidate${steps ? ' class="dn-steps dn-at-intro"' : ''}>
       ${steps ? '<div class="dn-progress" id="dn-progress" hidden><div class="dn-progress__bar"><span></span></div><p class="dn-progress__txt" id="dn-progress-txt" aria-live="polite"></p></div>' : ''}
-      ${!(config.header && config.header.enabled) && config.logo && config.logo.src ? `<div class="dn-logo dn-intro-only">${logoImg()}</div>` : ''}
+      ${!(config.header && config.header.enabled) && config.logo && config.logo.src ? `<div class="dn-logo">${logoImg()}</div>` : ''}
       <div class="dn-head"><div class="dn-head__text">
         <h1 class="fr-h2 fr-mb-2w" id="dn-title">${title}</h1>
         <div class="dn-ref fr-mb-3w" id="dn-ref" hidden><ul class="fr-tags-group" id="dn-ref-tags"></ul>
@@ -787,7 +785,7 @@ function renderForm() {
 // Remonte en haut de la page (logo compris), après la mise en page et le clavier du téléphone
 function toTop() {
   window.scrollTo(0, 0);
-  requestAnimationFrame(() => { window.scrollTo(0, 0); setTimeout(() => window.scrollTo(0, 0), 120); });
+  requestAnimationFrame(() => window.scrollTo(0, 0));
 }
 try { if ('scrollRestoration' in history) history.scrollRestoration = 'manual'; } catch (e) { /* ignore */ }
 
