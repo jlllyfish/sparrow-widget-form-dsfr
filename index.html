@@ -117,6 +117,10 @@
   .bld-map__extra .fr-input{max-width:12rem;margin:0;padding-top:.25rem;padding-bottom:.25rem}
   .bld-map__extra .fr-hint-text{margin:0}
   @media (max-width:576px){.dn-stepnav{flex-wrap:wrap}.dn-stepnav .dn-foot-ref{flex-basis:100%;font-size:.8125rem}}
+  .dn-home__card{border:1px solid var(--border-default-grey);padding:1.5rem}
+  .dn-home__row{display:flex;gap:.75rem;align-items:flex-end;flex-wrap:wrap}
+  .dn-home__row .fr-input-group{flex:1 1 18rem}
+  .dn-home__actions{display:flex;gap:.75rem;flex-wrap:wrap}
   .dn-loading{display:flex;align-items:center;gap:1rem;padding:3rem 0}
   .dn-spin{display:inline-block;width:1.5rem;height:1.5rem;border:3px solid var(--border-default-grey);border-top-color:var(--border-active-blue-france);border-radius:50%;animation:dnSpin .8s linear infinite;flex:none}
   .dn-spin--btn{width:1rem;height:1rem;border-width:2px;border-color:rgba(255,255,255,.4);border-top-color:#fff;margin-right:.5rem;vertical-align:-.125rem}
@@ -441,7 +445,8 @@ let targetTableId = null;   // table des réponses du formulaire courant (config
 let widgetTableId = null;   // table à laquelle le widget est relié dans Grist
 let formsList = [];         // formulaires du document (table Formulaires)
 let wiz = null;             // état de l’assistant de création
-let mode = 'form';          // form | builder | preview | success
+let mode = 'form';          // home | form | builder | preview | success
+let previewCode = '', previewFrom = 'builder';   // aperçu « comme le lien d’un stage »
 let tab = 'fields';
 let selectedFieldId = null;
 const lookupCache = {};
@@ -640,7 +645,8 @@ async function callApi(api, payload) {
    FORMULAIRE : rendu
    ===================================================================== */
 function render() {
-  if (mode === 'builder') renderBuilder();
+  if (mode === 'home') renderHome();
+  else if (mode === 'builder') renderBuilder();
   else if (mode === 'form' || mode === 'preview') renderForm();
 }
 
@@ -662,10 +668,54 @@ function headerHtml() {
       ${h.serviceTagline ? `<p class="fr-header__service-tagline">${txt1(h.serviceTagline)}</p>` : ''}</div>` : ''}
     </div></div></div></div></header>`;
 }
+/* =====================================================================
+   ACCUEIL DU WIDGET (dans Grist) : état du formulaire, aperçu d’un stage, raccourcis
+   ===================================================================== */
+let homeCodes = [];
+async function renderHome() {
+  document.body.classList.remove('dn-steps-on', 'dn-on-intro');
+  if (!config.fields.length && !formRowId) { renderForm(); return; }   // aucun formulaire : invitation à en créer un
+  const cur = formsList.find(f => String(f.id) === String(formRowId));
+  const state = cur ? cur.state : 'non enregistré';
+  const badge = { 'publié': 'success', 'brouillon': 'info', 'modifications non publiées': 'warning', 'suspendu': 'error' }[state] || 'info';
+  const pub = publicLink();
+  const id = ctlId();
+  const others = formsList.length > 1 ? `<div class="fr-select-group fr-mb-3w"><label class="fr-label" for="${id}">Formulaire</label>
+    <select class="fr-select" id="${id}" data-forms>${formsList.map(f => opt(f.id, `${f.title} (${f.state})`, String(f.id) === String(formRowId))).join('')}</select></div>` : '';
+  const hasCodes = !!(config.urlField && codesRule());
+  app.innerHTML = `${!inGrist ? bandHtml() : ''}<main class="dn-page dn-home">
+    <p class="fr-text--sm fr-text-mention--grey fr-mb-1w">Sparrow · formulaire</p>
+    ${others}
+    <h1 class="fr-h3 fr-mb-1w">${esc1(formTitle())}</h1>
+    <p class="fr-mb-4w"><span class="fr-badge fr-badge--sm fr-badge--${badge}">${esc(state)}</span>
+      <span class="fr-text--sm fr-text-mention--grey fr-ml-1w">${esc(config.slug || '')}${config.fields.filter(isInput).length ? ` · ${config.fields.filter(isInput).length} question(s)` : ''}</span></p>
+    ${hasCodes ? `<div class="dn-home__card fr-mb-4w">
+      <h2 class="fr-h6 fr-mb-1w">Voir le formulaire d’un stage</h2>
+      <p class="fr-text--sm fr-mb-2w">Choisissez une référence : l’aperçu s’ouvre comme avec le lien ou le QR code de ce stage. Rien n’est enregistré.</p>
+      <div class="dn-home__row"><div class="fr-input-group fr-mb-0"><label class="fr-label fr-sr-only" for="home-code">Référence du stage</label>
+        <input class="fr-input" id="home-code" list="home-codes" placeholder="Tapez un code ou un mot de l’intitulé" autocomplete="off"><datalist id="home-codes"></datalist></div>
+        <button type="button" class="fr-btn fr-icon-eye-line fr-btn--icon-left" data-act="homePreview">Aperçu</button></div>
+      <p class="fr-hint-text fr-mt-1w" id="home-codes-n"></p></div>` : ''}
+    <div class="dn-home__actions">
+      <button type="button" class="fr-btn fr-icon-settings-5-line fr-btn--icon-left" data-act="configure">Configurer</button>
+      ${hasCodes ? '<button type="button" class="fr-btn fr-btn--secondary fr-icon-qr-code-line fr-btn--icon-left" data-act="homeLinks">Liens et QR codes</button>' : ''}
+      ${pub && state !== 'brouillon' ? `<a class="fr-btn fr-btn--tertiary fr-icon-external-link-line fr-btn--icon-left" href="${esc(pub)}" target="_blank" rel="noopener">Formulaire public</a>` : ''}
+      <button type="button" class="fr-btn fr-btn--tertiary-no-outline fr-icon-eye-line fr-btn--icon-left" data-act="preview">Aperçu sans stage</button>
+    </div></main>`;
+  if (hasCodes) {
+    try { homeCodes = await getCodes(); } catch (e) { console.warn(e); homeCodes = []; }
+    const dl = $('#home-codes');
+    if (!dl) return;
+    dl.innerHTML = homeCodes.map(c => `<option value="${esc(c.code)}">${esc(c.label || '')}${c.closed ? ' (fermé)' : ''}</option>`).join('');
+    $('#home-codes-n').textContent = homeCodes.length ? `${homeCodes.length} référence(s) disponible(s).` : 'Aucune référence trouvée dans la table.';
+  }
+}
+
 function bandHtml() {
   if (mode === 'preview') {
     return `<div class="dn-band dn-band--preview"><p><span class="fr-icon-eye-line fr-icon--sm" aria-hidden="true"></span> Aperçu — les réponses ne sont pas enregistrées</p>
-      <button class="fr-btn fr-btn--sm fr-btn--secondary" data-act="back">Retour à la configuration</button></div>`;
+      ${previewCode ? `<p class="fr-text--sm fr-mb-0">Comme le lien du stage <strong>${esc(previewCode)}</strong></p>` : ''}
+      <button class="fr-btn fr-btn--sm fr-btn--secondary" data-act="back">${previewFrom === 'home' ? 'Retour à l’accueil' : 'Retour à la configuration'}</button></div>`;
   }
   if (!inGrist && !remote) {
     return `<div class="dn-band"><p>Mode démonstration (hors Grist) — données fictives</p>
@@ -729,7 +779,7 @@ function renderForm() {
   bindForm($('#dn-form'));
   applyVisibility();
   config.fields.filter(f => f.type === 'tableselect').forEach(loadOptions);
-  if (mode === 'form') applyUrlPrefill();
+  if (mode === 'form' || (mode === 'preview' && previewCode)) applyUrlPrefill();
   updateSelfQr();
   if (steps) stepsStart();
 }
@@ -1029,14 +1079,15 @@ async function loadOptions(f) {
 
 /* ---------- valeur transmise par le lien (?code=…) ---------- */
 // Champ rempli et verrouillé par le lien du stage : on n’affiche pas la liste des autres stages
-const codeFromLink = f => mode === 'form' && config.urlLock && f.id === config.urlField && !!String(URLP.get(urlParamName()) || '').trim();
+const linkCode = () => String((mode === 'preview' ? previewCode : mode === 'form' ? URLP.get(urlParamName()) : '') || '').trim();
+const codeFromLink = f => (mode === 'form' || mode === 'preview') && config.urlLock && f.id === config.urlField && !!linkCode();
 const urlParamName = () => { const n = config.urlParam || 'code'; return ['f', 'api'].includes(n) ? 'code' : n; };
 function applyUrlPrefill() {
   const f = fieldById(config.urlField);
   if (!f || !isInput(f)) return;
-  const v = URLP.get(urlParamName());
-  if (!v || !v.trim()) return;
-  setValue(f, v.trim());
+  const v = linkCode();
+  if (!v) return;
+  setValue(f, v);
   if (config.urlLock) setLocked(f, true);
   applyVisibility();
   if (config.lookups.some(l => l.triggerFieldId === f.id)) triggerLookups(f.id);
@@ -2882,15 +2933,22 @@ const actions = {
   close: () => {
     if (isDirty() && !confirm('Des modifications ne sont pas enregistrées. Fermer quand même ?')) return;
     config = normalizeConfig(JSON.parse(savedJson));
-    mode = 'form'; resetFormState();
+    mode = remote ? 'form' : 'home'; resetFormState();
     loadContents().then(render);
   },
-  preview: () => { mode = 'preview'; resetFormState(); renderForm(); toTop(); },
+  preview: () => { if (mode === 'builder') { previewFrom = 'builder'; previewCode = ''; } else if (mode === 'home') { previewFrom = 'home'; previewCode = ''; } mode = 'preview'; resetFormState(); renderForm(); toTop(); },
+  homePreview: () => {
+    const v = String(($('#home-code') || {}).value || '').trim();
+    const c = (homeCodes || []).find(x => x.code === v || `${x.code} — ${x.label}` === v);
+    previewCode = c ? c.code : v; previewFrom = 'home';
+    mode = 'preview'; resetFormState(); renderForm(); toTop();
+  },
+  homeLinks: async () => { tab = 'links'; await openBuilder(); },
   qrZoom: () => qrZoom(),
   stepNext: () => stepNext(),
   stepPrev: () => stepPrev(),
   stepGoto: el => { histPush(el.dataset.key); stepReturnRecap = true; showStep(el.dataset.key, -1); },
-  back: () => { mode = 'builder'; renderBuilder(); },
+  back: () => { if (previewFrom === 'home') { mode = 'home'; previewCode = ''; renderHome(); } else { mode = 'builder'; renderBuilder(); } },
   configure: () => openBuilder(),
   newFormFromEmpty: async () => { await loadSchema(); await refreshForms(); startWizard(); },
   newResponse: () => { mode = 'form'; resetFormState(); renderForm(); toTop(); },
@@ -2986,6 +3044,10 @@ app.addEventListener('change', async e => {
         wiz.keyCol = find(/^code/); wiz.labelCol = find(/^(libelle|intitule|titre|nom)/); }
       renderWizard();
     }
+    return;
+  }
+  if (mode === 'home' && el.dataset.forms != null) {
+    if (await openForm(el.value)) { mode = 'home'; renderHome(); }
     return;
   }
   if (mode !== 'builder') return;
@@ -3115,7 +3177,7 @@ if (inGrist) {
   async function onFormRecord(r) {
     if (!r || widgetTableId !== FORMS_TABLE || String(r.id) === String(formRowId) || mode === 'builder' || mode === 'wizard') return;
     await refreshForms();
-    if (await openForm(r.id)) renderForm();
+    if (await openForm(r.id)) { mode = 'home'; renderHome(); }
   }
   (async () => {
     await loadSchema();
@@ -3128,7 +3190,7 @@ if (inGrist) {
       const old = await legacy;
       if (old) { config = normalizeConfig(old); targetTableId = config.targetTableId || widgetTableId || ''; config.targetTableId = targetTableId; savedJson = '{}'; }
     }
-    if (mode === 'form') renderForm();
+    if (mode === 'form') { mode = 'home'; renderHome(); }
   })();
 } else if (PUBLIC_SLUG) {
   bootRemote();
@@ -3138,7 +3200,8 @@ if (inGrist) {
     targetTableId = config.targetTableId;
     savedJson = JSON.stringify(config);
     await loadContents();
-    renderForm();
+    mode = 'home';
+    renderHome();
   });
 }
 

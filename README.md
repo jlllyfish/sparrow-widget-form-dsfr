@@ -70,6 +70,8 @@ Pour obtenir des liens plus courts, inscrivez l'URL du webhook n8n dans la const
 
    « Autre formulaire » n'est utile que pour un questionnaire **différent** (autres questions). La colonne « Formulaire » de Stages ne sert alors qu'à répartir les formations entre ces questionnaires ; avec un seul formulaire, elle est inutile.
 
+**Accueil du widget** : l'état du formulaire (publié, brouillon, modifications non publiées), **« Voir le formulaire d'un stage »** (aperçu exactement comme avec le lien ou le QR code de ce stage, rien n'est enregistré), et les raccourcis Configurer, Liens et QR codes, Formulaire public.
+
 ## 2 bis. Ajouter le widget QR code à côté de la table Stages
 1. Ajoutez un widget **Personnalisé** avec l'URL de `qrcode.html`, sélectionné par la table Stages.
 2. Dans le panneau de droite, associez les colonnes : **Lien** (obligatoire), Titre (Intitulé), Code, Détails (Dates) et Ouvert (Inscriptions ouvertes).
