@@ -734,6 +734,13 @@ function renderForm() {
   if (steps) stepsStart();
 }
 
+// Remonte en haut de la page (logo compris), après la mise en page et le clavier du téléphone
+function toTop() {
+  window.scrollTo(0, 0);
+  requestAnimationFrame(() => { window.scrollTo(0, 0); setTimeout(() => window.scrollTo(0, 0), 120); });
+}
+try { if ('scrollRestoration' in history) history.scrollRestoration = 'manual'; } catch (e) { /* ignore */ }
+
 /* =====================================================================
    UN ÉCRAN À LA FOIS (une question ou une section par écran)
    ===================================================================== */
@@ -855,13 +862,13 @@ function showStep(key, dir) {
   const kbd = $('#kbd-hint'); if (kbd) kbd.hidden = isIntro || isRecap || sc.items.some(f => f.type === 'textarea' || f.type === 'checkboxes');
   // focus : la question (ordinateur) ou l’écran (téléphone, pour ne pas ouvrir le clavier d’office)
   if (dir !== 0) {
-    window.scrollTo(0, 0);
     const first = sc.items.find(isInput);
     const touch = window.matchMedia && matchMedia('(pointer:coarse)').matches;
     const target = isRecap ? $('#dn-recap') : first && !touch ? $('input:not([type=hidden]):not([readonly]),select,textarea', blockOf(first)) : null;
     const lab = first && $('.fr-label,.fr-fieldset__legend', blockOf(first));
     if (target) target.focus({ preventScroll: true });
     else if (lab) { lab.tabIndex = -1; lab.focus({ preventScroll: true }); }
+    toTop();   // après le focus : certains navigateurs mobiles ignorent preventScroll
   }
   if (dir !== 0) $('#form-alert').innerHTML = '';
 }
@@ -1555,7 +1562,7 @@ function showSuccess(rowId, record) {
     ${wasPreview ? '<button class="fr-btn fr-btn--secondary fr-icon-refresh-line fr-btn--icon-left" data-act="preview">Recommencer l’aperçu</button>'
       : config.allowNewResponse ? '<button class="fr-btn fr-btn--secondary fr-icon-add-line fr-btn--icon-left" data-act="newResponse">Déposer une nouvelle réponse</button>' : ''}
   </main>`;
-  window.scrollTo(0, 0);
+  toTop();
 }
 function resetFormState() {
   [prefilledBy, lookupState, lookupLastKey, lookupErr].forEach(o => Object.keys(o).forEach(k => delete o[k]));
@@ -2878,7 +2885,7 @@ const actions = {
     mode = 'form'; resetFormState();
     loadContents().then(render);
   },
-  preview: () => { mode = 'preview'; resetFormState(); renderForm(); window.scrollTo(0, 0); },
+  preview: () => { mode = 'preview'; resetFormState(); renderForm(); toTop(); },
   qrZoom: () => qrZoom(),
   stepNext: () => stepNext(),
   stepPrev: () => stepPrev(),
@@ -2886,7 +2893,7 @@ const actions = {
   back: () => { mode = 'builder'; renderBuilder(); },
   configure: () => openBuilder(),
   newFormFromEmpty: async () => { await loadSchema(); await refreshForms(); startWizard(); },
-  newResponse: () => { mode = 'form'; resetFormState(); renderForm(); window.scrollTo(0, 0); },
+  newResponse: () => { mode = 'form'; resetFormState(); renderForm(); toTop(); },
   qrPng: () => { const u = qrTarget(); if (u) download(qrPngDataUrl(u, 20), `qrcode-${slugify(formTitle()) || 'formulaire'}.png`); },
   qrSvg: () => {
     const qr = makeQR(qrTarget());
@@ -3068,7 +3075,7 @@ async function bootRemote() {
     const code = String(URLP.get(pn) || URLP.get('code') || '').trim();
     bootCall = callApi(PUBLIC_API, Object.assign({ action: 'config', f: PUBLIC_SLUG }, code ? { value: code } : {}));
     // affichage immédiat avec la dernière version connue, mise à jour dès la réponse
-    if (cached) { config = normalizeConfig(cached); savedJson = JSON.stringify(config); renderForm(); }
+    if (cached) { config = normalizeConfig(cached); savedJson = JSON.stringify(config); renderForm(); toTop(); }
     const r = await bootCall;
     if (!r || r.ok === false || !r.config) { try { localStorage.removeItem(cfgCacheKey()); } catch (e) { /* ignore */ } throw new Error((r && r.error) || 'Ce formulaire n’existe pas ou n’est plus ouvert.'); }
     writeCachedConfig(r.config);
@@ -3078,6 +3085,7 @@ async function bootRemote() {
       savedJson = fresh;
       resetFormState();
       renderForm();
+      toTop();
     }
   } catch (e) {
     console.error(e);
